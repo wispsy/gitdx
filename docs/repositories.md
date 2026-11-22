@@ -47,3 +47,5 @@ payloads are structurally validated. Cat-file writes raw payload bytes, includin
 raw binary tree entries; it does not provide Git's pretty-print porcelain yet.
 Expected failures return status 1 and a concise error; argparse usage errors
 return status 2. These commands run without Git installed.
+Object-ID/type/size output uses LF consistently on every platform; payload
+output preserves bytes exactly.

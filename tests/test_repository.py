@@ -148,6 +148,7 @@ class CLITests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 oid = result.stdout.strip().decode()
                 self.assertEqual(oid, Blob(content).to_raw().oid(fmt).hex)
+                self.assertEqual(result.stdout, oid.encode("ascii") + b"\n")
                 self.assertEqual(cli("cat-file", oid).stdout, content)
                 self.assertEqual(cli("cat-file", "-t", oid).stdout, b"blob\n")
                 self.assertEqual(cli("cat-file", "-s", oid).stdout, str(len(content)).encode() + b"\n")
