@@ -23,6 +23,8 @@ print(blob.oid(ObjectFormat.SHA256)) # SHA-256
 ```
 
 [Object contracts](docs/objects.md) describe byte handling and validation.
+[Loose storage](docs/storage.md) adds bounded verified reads and atomic
+publish-if-absent writes under an existing owner-controlled objects directory.
 Repository mutation, staging, packed objects and network operations are separate
 tasks and are not implied by codec support.
 
