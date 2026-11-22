@@ -25,8 +25,9 @@ print(blob.oid(ObjectFormat.SHA256)) # SHA-256
 [Object contracts](docs/objects.md) describe byte handling and validation.
 [Loose storage](docs/storage.md) adds bounded verified reads and atomic
 publish-if-absent writes under an existing owner-controlled objects directory.
-Repository mutation, staging, packed objects and network operations are separate
-tasks and are not implied by codec support.
+[Repository lifecycle and plumbing](docs/repositories.md) provide `init`,
+`hash-object` and `cat-file`. Staging, packed objects and network operations
+remain separate milestones.
 
 Run `uv sync --locked` and `uv run python -m unittest discover -s tests -v`.
 Git is used only as a test oracle; `GITDX_REQUIRE_GIT=1` makes a missing oracle

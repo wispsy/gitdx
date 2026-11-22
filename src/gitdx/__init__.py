@@ -4,11 +4,13 @@ from .errors import GitdxError, InvalidObject, UnsupportedFormat
 from .objects import Blob, Commit, Header, ObjectFormat, ObjectId, ObjectType, RawObject, Tag, Tree, TreeEntry, parse_object
 from .filesystem import UnsafePath
 from .object_store import LooseObjectStore, MissingObject, ObjectLimitExceeded, ObjectStore, StoreLimits
+from .repository import Repository, RepositoryNotFound
+from .names import InvalidRef
 
 __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFormat",
            "ObjectId", "ObjectType", "RawObject", "Tag", "Tree", "TreeEntry",
            "UnsupportedFormat", "parse_object", "UnsafePath", "LooseObjectStore", "MissingObject",
-           "ObjectLimitExceeded", "ObjectStore", "StoreLimits"]
+           "ObjectLimitExceeded", "ObjectStore", "StoreLimits", "Repository", "RepositoryNotFound", "InvalidRef"]
 
 
 def main() -> None:
