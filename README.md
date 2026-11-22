@@ -9,3 +9,24 @@ Development starts with the [implementation plan](IMPLEMENTATION_PLAN.md) and
 qualification targets; remote exchange and public hosting are later milestones.
 
 Source development does not imply a published package or deployed service.
+
+The initial Python API provides SHA-1/SHA-256 identities and byte-preserving
+blob, tree, commit and annotated-tag codecs, without runtime dependencies or
+calls to the Git executable:
+
+```python
+from gitdx import Blob, ObjectFormat
+
+blob = Blob(b"hello\n").to_raw()
+print(blob.oid())                    # SHA-1
+print(blob.oid(ObjectFormat.SHA256)) # SHA-256
+```
+
+[Object contracts](docs/objects.md) describe byte handling and validation.
+Repository mutation, staging, packed objects and network operations are separate
+tasks and are not implied by codec support.
+
+Run `uv sync --locked` and `uv run python -m unittest discover -s tests -v`.
+Git is used only as a test oracle; `GITDX_REQUIRE_GIT=1` makes a missing oracle
+an error. `uv run python scripts/check_distribution.py` checks isolated wheel
+and sdist installations and runtime startup without Git on PATH.
