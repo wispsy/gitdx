@@ -61,14 +61,15 @@ def main(argv: list[str] | None = None) -> int:
                 raise ObjectLimitExceeded("input exceeds the default object byte limit")
             raw = RawObject(args.type, data)
             parse_object(raw, format)
-            print(repo.objects.write(raw) if args.write else raw.oid(format))
+            oid = repo.objects.write(raw) if args.write else raw.oid(format)
+            sys.stdout.buffer.write(oid.hex.encode("ascii") + b"\n")
         else:
             repo = Repository.discover(base)
             raw = repo.objects.read(ObjectId(args.oid, repo.object_format))
             if args.type:
-                print(raw.kind.value)
+                sys.stdout.buffer.write(raw.kind.value.encode("ascii") + b"\n")
             elif args.size:
-                print(len(raw.data))
+                sys.stdout.buffer.write(str(len(raw.data)).encode("ascii") + b"\n")
             else:
                 sys.stdout.buffer.write(raw.data)
         return 0
