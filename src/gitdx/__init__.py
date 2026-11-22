@@ -6,11 +6,13 @@ from .filesystem import UnsafePath
 from .object_store import LooseObjectStore, MissingObject, ObjectLimitExceeded, ObjectStore, StoreLimits
 from .repository import Repository, RepositoryNotFound
 from .names import InvalidRef
+from .refs import DirectRef, FilesRefStore, RefConflict, RefLocked, RefStore, ResolvedRef, SymbolicRef
 
 __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFormat",
            "ObjectId", "ObjectType", "RawObject", "Tag", "Tree", "TreeEntry",
            "UnsupportedFormat", "parse_object", "UnsafePath", "LooseObjectStore", "MissingObject",
-           "ObjectLimitExceeded", "ObjectStore", "StoreLimits", "Repository", "RepositoryNotFound", "InvalidRef"]
+           "ObjectLimitExceeded", "ObjectStore", "StoreLimits", "Repository", "RepositoryNotFound", "InvalidRef",
+           "DirectRef", "FilesRefStore", "RefConflict", "RefLocked", "RefStore", "ResolvedRef", "SymbolicRef"]
 
 
 def main() -> None:
