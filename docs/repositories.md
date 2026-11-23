@@ -22,8 +22,8 @@ Incomplete `.git` directories and recognizable incomplete bare metadata are
 also discovery boundaries: an inner metadata failure cannot select an outer
 repository for a write. Gitfiles, linked worktrees,
 alternates, shallow repositories, custom worktrees and sparse checkout are
-currently refused. Object lookup is loose-only; an existing repository with
-packs may open but missing loose objects report the packed-object limitation.
+currently refused. Object lookup uses loose objects and indexed base pack
+objects; [delta objects remain explicitly unsupported](packs.md).
 
 Repository format versions 0 and 1 are recognized. Only native SHA-1/SHA-256
 and files refs are selected; reftable and all other required extensions fail

@@ -9,7 +9,8 @@ from .config import RepositoryConfig, parse_config
 from .errors import GitdxError, UnsupportedFormat
 from .filesystem import check_path, read_file
 from .names import InvalidRef, validate_branch, validate_refname
-from .object_store import LooseObjectStore, StoreLimits
+from .object_store import StoreLimits
+from .pack import PackLimits, RepositoryObjectStore
 from .objects import ObjectFormat, ObjectId
 from .refs import FilesRefStore
 from .index import IndexFile
@@ -24,7 +25,7 @@ class Repository:
     git_dir: Path
     work_tree: Path | None
     config: RepositoryConfig
-    objects: LooseObjectStore
+    objects: RepositoryObjectStore
 
     @property
     def bare(self) -> bool:
@@ -91,7 +92,7 @@ class Repository:
             raise
 
     @classmethod
-    def open(cls, path: str | os.PathLike[str], *, limits: StoreLimits | None = None) -> Repository:
+    def open(cls, path: str | os.PathLike[str], *, limits: StoreLimits | None = None, pack_limits: PackLimits | None = None) -> Repository:
         root = Path(path).absolute()
         check_path(root, root)
         if not root.is_dir():
@@ -139,17 +140,17 @@ class Repository:
             if config.bare:
                 raise UnsupportedFormat("bare config cannot be used with an attached worktree")
             work_tree = root
-        objects = LooseObjectStore(git_dir / "objects", config.object_format, limits=limits)
+        objects = RepositoryObjectStore(git_dir / "objects", config.object_format, limits=limits, pack_limits=pack_limits)
         return cls(git_dir, work_tree, config, objects)
 
     @classmethod
-    def discover(cls, start: str | os.PathLike[str] = ".", *, limits: StoreLimits | None = None) -> Repository:
+    def discover(cls, start: str | os.PathLike[str] = ".", *, limits: StoreLimits | None = None, pack_limits: PackLimits | None = None) -> Repository:
         path = Path(start).absolute()
         if path.is_file():
             path = path.parent
         for candidate in (path, *path.parents):
             try:
-                return cls.open(candidate, limits=limits)
+                return cls.open(candidate, limits=limits, pack_limits=pack_limits)
             except RepositoryNotFound:
                 continue
         raise RepositoryNotFound("no repository found in the selected directory or its parents")
