@@ -4,6 +4,9 @@ A standalone, standard-library Python Git engine with Git-compatible storage and
 
 Python 3.14+ · MIT
 
+[Configuration policy](docs/configuration.md) provides ordered Git values,
+quoting/continuations and explicitly confined include inspection.
+
 [Commit/history](docs/history.md) builds staged trees with explicit identities
 and expected-HEAD publication, plus bounded parent-order history and ref listings.
 

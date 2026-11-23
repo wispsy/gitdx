@@ -5,6 +5,7 @@ from .objects import Blob, Commit, Header, ObjectFormat, ObjectId, ObjectType, R
 from .filesystem import UnsafePath
 from .object_store import LooseObjectStore, MissingObject, ObjectLimitExceeded, ObjectStore, StoreLimits
 from .repository import Repository, RepositoryNotFound
+from .config import Config, ConfigEntry, RepositoryConfig, parse_config, parse_values, read_config
 from .names import InvalidRef
 from .refs import DirectRef, FilesRefStore, RefConflict, RefLocked, RefStore, ResolvedRef, SymbolicRef
 from .index import Index, IndexEntry, IndexExtension, IndexFile, IndexLimits, IndexLocked, IndexStat, InvalidIndex
@@ -39,6 +40,7 @@ __all__ += ["HistoryEntry", "HistoryLimits"]
 __all__ += ["PackBundle", "PackWriteLimits", "reachable_objects", "write_pack"]
 __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPlan", "CheckoutRecoveryRequired"]
 __all__ += ["CheckoutResult"]
+__all__ += ["Config", "ConfigEntry", "RepositoryConfig", "parse_config", "parse_values", "read_config"]
 __all__ += ["DELIMITER", "FLUSH", "RESPONSE_END", "Packet", "PacketDecoder", "PacketKind", "ProtocolBudget", "ProtocolCancelled",
             "ProtocolError", "ProtocolLimitExceeded", "ProtocolLimits", "ProtocolTimeout", "RemoteProtocolError", "Sideband",
             "decode_sideband", "encode_packet", "encode_sideband", "read_packets", "write_packets"]
