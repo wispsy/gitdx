@@ -78,6 +78,10 @@ class Repository:
         from .history import list_refs
         return list_refs(self, "refs/tags/", limits=limits)
 
+    def pack(self, roots, *, limits=None):
+        from .pack_writer import write_pack
+        return write_pack(self.objects, roots, limits=limits)
+
     @classmethod
     def init(cls, path: str | os.PathLike[str], *, bare: bool = False,
              object_format: ObjectFormat = ObjectFormat.SHA1, initial_branch: str = "main") -> Repository:

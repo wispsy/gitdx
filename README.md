@@ -7,6 +7,9 @@ Python 3.14+ · MIT
 [Commit/history](docs/history.md) builds staged trees with explicit identities
 and expected-HEAD publication, plus bounded parent-order history and ref listings.
 
+[Pack writing](docs/pack-writing.md) validates selected object closures and emits
+native-format non-delta packs with v2 indexes, without a Git runtime.
+
 Development starts with the [implementation plan](IMPLEMENTATION_PLAN.md) and
 [shared Project](https://github.com/orgs/wispsy/projects/30). The roadmap records
 qualification targets; remote exchange and public hosting are later milestones.
