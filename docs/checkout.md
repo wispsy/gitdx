@@ -22,7 +22,10 @@ Every target component and existing affected namespace uses the portable path
 profile: no traversal, metadata aliases, Windows devices/streams, trailing dots
 or spaces, case/NFC aliases, compatibility metadata variants or HFS-ignorable
 characters. Symlink values are never followed; a symlink parent cannot redirect
-a checkout. The metadata protections account for the categories described in
+a checkout. Non-symbolic Windows reparse points, including directory junctions,
+are refused before scanning or reading their children. Storage metadata/root
+checks also reject every reparse-point boundary. The metadata protections account
+for the categories described in
 Git's [path checks](https://github.com/git/git/blob/master/path.c) and
 [HFS checks](https://github.com/git/git/blob/master/utf8.c).
 

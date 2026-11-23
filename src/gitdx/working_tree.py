@@ -8,7 +8,7 @@ import stat
 import unicodedata
 
 from .errors import GitdxError, UnsupportedFormat
-from .filesystem import UnsafePath, check_path, read_file
+from .filesystem import UnsafePath, check_path, is_reparse_point, read_file
 from .ignore import parse_ignore
 from .index import IndexEntry, IndexStat
 from .objects import Blob, Commit, ObjectType, Tree
@@ -132,6 +132,7 @@ class WorkingTree:
                 raw = (base+b"/" if base else b"") + os.fsencode(child.name);register(raw)
                 # Windows DirEntry caches omit file identifiers used below.
                 info = Path(child.path).lstat()
+                if is_reparse_point(info) and not stat.S_ISLNK(info.st_mode):raise UnsafePath("working-tree reparse points are outside the portable profile")
                 is_dir = stat.S_ISDIR(info.st_mode)
                 ignored = self.ignored(raw,is_dir)
                 nodes[raw] = (Path(child.path),info,ignored)
