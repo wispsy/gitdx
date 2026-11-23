@@ -12,6 +12,10 @@ class UnsafePath(GitdxError, ValueError):
     """A storage path crosses an unsupported filesystem boundary."""
 
 
+def is_reparse_point(info) -> bool:
+    return bool(getattr(info,"st_file_attributes",0)&getattr(stat,"FILE_ATTRIBUTE_REPARSE_POINT",0x400))
+
+
 def check_path(root: Path, target: Path) -> None:
     """Reject existing symlinks, including the root itself; do not resolve them.
 
@@ -26,11 +30,11 @@ def check_path(root: Path, target: Path) -> None:
         if part is not None:
             current /= part
         try:
-            mode = current.lstat().st_mode
+            info = current.lstat();mode = info.st_mode
         except FileNotFoundError:
             continue
-        if stat.S_ISLNK(mode):
-            raise UnsafePath("symlinks are not supported inside repository storage")
+        if stat.S_ISLNK(mode) or is_reparse_point(info):
+            raise UnsafePath("symlinks and reparse points are not supported inside repository storage")
         if current != target and not stat.S_ISDIR(mode):
             raise UnsafePath("repository storage parent is not a directory")
 

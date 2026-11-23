@@ -8,7 +8,7 @@ import stat
 import unicodedata
 
 from .errors import GitdxError, UnsupportedFormat
-from .filesystem import UnsafePath, check_path, read_file
+from .filesystem import UnsafePath, check_path, is_reparse_point, read_file
 from .ignore import parse_ignore
 from .index import IndexEntry, IndexStat
 from .objects import Blob, Commit, ObjectType, Tree
@@ -46,8 +46,11 @@ def portable_path(path) -> bytes:
     if not value or value.startswith(b"/") or len(value) > 4096:raise UnsafePath("expected a bounded relative working-tree path")
     for part in value.split(b"/"):
         normalized = unicodedata.normalize("NFC", os.fsdecode(part)).casefold()
-        device = normalized.split(".",1)[0].upper()
-        if part in (b"",b".",b"..") or part.endswith((b".",b" ")) or normalized in (".git","git~1",".git~1"):
+        compatibility = unicodedata.normalize("NFKC", normalized)
+        device = compatibility.split(".",1)[0].upper()
+        ignored = {0x200c,0x200d,0x200e,0x200f,*range(0x202a,0x202f),*range(0x206a,0x2070),0xfeff}
+        if any(ord(c) in ignored for c in normalized):raise UnsafePath("HFS-ignorable path components are outside the portable profile")
+        if part in (b"",b".",b"..") or part.endswith((b".",b" ")) or compatibility == ".git" or re.fullmatch(r"\.?git~[0-9]+", compatibility):
             raise UnsafePath("working-tree path contains reserved metadata or traversal components")
         if any(c < 32 or c == 127 or c in b'\\<>:"|?*' for c in part) or device in {"CON","PRN","AUX","NUL",*(f"COM{i}" for i in range(1,10)),*(f"LPT{i}" for i in range(1,10))}:
             raise UnsafePath("working-tree path is outside the portable supported subset")
@@ -129,6 +132,7 @@ class WorkingTree:
                 raw = (base+b"/" if base else b"") + os.fsencode(child.name);register(raw)
                 # Windows DirEntry caches omit file identifiers used below.
                 info = Path(child.path).lstat()
+                if is_reparse_point(info) and not stat.S_ISLNK(info.st_mode):raise UnsafePath("working-tree reparse points are outside the portable profile")
                 is_dir = stat.S_ISDIR(info.st_mode)
                 ignored = self.ignored(raw,is_dir)
                 nodes[raw] = (Path(child.path),info,ignored)
