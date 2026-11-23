@@ -14,12 +14,16 @@ checks pairing/trailers/counts, every indexed object's boundaries/header and v2
 CRC32, then inflates and hashes the requested base object. SHA-1 and SHA-256 use
 their native full OID/checksum widths throughout.
 
-Only undeltified blobs, trees, commits and tags are readable. OFS/REF delta base
-headers are bounded and validated structurally, but requesting their object
-raises `UnsupportedFormat` naming DX-12. This is not full existing-repository
-compatibility or a whole-pack fsck: unrequested compressed payloads and reachable
-graphs are not inflated/validated. Thin-pack resolution, alternates, maintenance
-races and all network exchange remain later work.
+OFS/REF deltas are reconstructed iteratively and verified at every dependency
+against their indexed IDs. Source/target sizes, copy/insert ranges, reserved
+opcodes and compression framing are checked. Cycles, missing bases and excessive
+depth fail explicitly without recursion exhaustion. This is not a whole-pack fsck:
+unrequested payloads and reachable graphs are not fully validated.
+
+Standalone `PackFile.read` requires bases in that pack. Repository reads may use
+explicitly indexed packs or loose objects in the same selected repository for
+REF bases. No network, alternates or implicit external filesystem base lookup is
+performed. This read policy does not implement incoming thin-pack ingestion.
 
 Default `PackLimits` cap a pack at 256 MiB, an index at 64 MiB, 250,000 objects,
 64 MiB expanded/compressed per object, 128 packs and 512 MiB aggregate lookup
@@ -27,8 +31,11 @@ scan bytes. Inflation is additionally bounded by the declared object size.
 `Repository.open(..., pack_limits=...)` and `discover` accept explicit limits;
 without an override, existing `StoreLimits` also bound packed object sizes.
 The initial implementation reads bounded files into memory and verifies pack
-metadata on each lookup. Large-repository performance and caching need separate
-qualification rather than silently relaxing budgets.
+metadata once per lookup/dependency chain. Large-repository performance and caching need separate
+qualification rather than silently relaxing budgets. Delta limits default to
+64 levels, one million instructions and 256 MiB aggregate inflated/reconstructed
+bytes, including intermediate results. Pack/index scan budgets are shared across
+the whole chain, with parsed packs cached only for that read.
 
 Native-Git fixtures cover both hashes and index v1/v2, prune-packed fallback and
 pack v3 ingestion. Synthetic fixtures cover 64-bit offset-table entries,

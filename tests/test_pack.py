@@ -107,7 +107,7 @@ class PackTests(unittest.TestCase):
         with self.assertRaises(ObjectLimitExceeded):PackFile(data, PackIndex.from_bytes(idx), limits=PackLimits(max_object_bytes=10))
         with self.assertRaises(ObjectLimitExceeded):PackFile(data, PackIndex.from_bytes(idx), limits=PackLimits(max_compressed_object_bytes=1))
 
-    def test_delta_boundaries_are_parsed_but_resolution_refused(self):
+    def test_delta_boundaries_and_reconstruction(self):
         base, target = Blob(b"abc").to_raw(), Blob(b"abcd").to_raw()
         first = b"\x33" + zlib.compress(base.data)
         instructions = zlib.compress(b"\x03\x04\x90\x03\x01d")
@@ -115,7 +115,7 @@ class PackTests(unittest.TestCase):
             data, idx, oids = fixture((base, target), records=(first, second))
             reader = PackFile(data, PackIndex.from_bytes(idx))
             self.assertEqual(reader.read(oids[0]), base)
-            with self.assertRaisesRegex(UnsupportedFormat, "DX-12"):reader.read(oids[1])
+            self.assertEqual(reader.read(oids[1]),target)
         for second in (b"\x66\0" + instructions, b"\x76short"):
             data, idx, _ = fixture((base, target), records=(first, second))
             with self.assertRaises(InvalidPack):PackFile(data, PackIndex.from_bytes(idx))
