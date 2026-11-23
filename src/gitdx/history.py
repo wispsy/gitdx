@@ -113,6 +113,8 @@ def create_commit(repo, *, author, committer, message, expected_head, parents=No
     if resolved.oid != expected_head:raise RefConflict("HEAD changed since its expected ID")
     if isinstance(head, SymbolicRef) and (resolved.symbolic_chain != ("HEAD",) or not resolved.name.startswith("refs/heads/")):
         raise UnsupportedFormat("commits require detached HEAD or a direct branch symbolic HEAD")
+    if isinstance(head, SymbolicRef) and resolved.name != head.target:
+        raise RefConflict("HEAD changed while capturing its branch target")
     if head is None:raise InvalidObject("HEAD must exist")
     selected = (expected_head,) if parents is None and expected_head is not None else () if parents is None else tuple(islice(parents, limits.max_parents+1))
     if len(selected) > limits.max_parents or len(set(selected)) != len(selected):raise InvalidObject("invalid or excessive commit parents")
