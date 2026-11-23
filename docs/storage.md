@@ -19,6 +19,6 @@ Static symlinks within storage are rejected, including fanout/object paths.
 The caller must control the directory and its ancestors: the current portable
 checks do not defend against concurrent malicious directory replacement. Atomic
 visibility is tested, including interrupted writes and competing writers. Full
-power-loss durability, packed-object access, garbage collection and hostile
-SHA-1 ingestion are later qualification milestones. Missing loose objects report
-the current packed-object limitation explicitly.
+power-loss durability, garbage collection and hostile SHA-1 ingestion are later
+qualification milestones. `LooseObjectStore` remains explicitly loose-only;
+the repository-level store adds [bounded indexed pack fallback](packs.md).

@@ -26,14 +26,18 @@ print(blob.oid(ObjectFormat.SHA256)) # SHA-256
 [Loose storage](docs/storage.md) adds bounded verified reads and atomic
 publish-if-absent writes under an existing owner-controlled objects directory.
 [Repository lifecycle and plumbing](docs/repositories.md) provide `init`,
-`hash-object` and `cat-file`. Staging, packed objects and network operations
+`hash-object` and `cat-file`. Filesystem staging and network operations
 remain separate milestones.
 
-[Loose refs](docs/refs.md) provide validated single-ref compare-and-swap and
+[Files refs](docs/refs.md) include packed refs, guarded deletion, explicit reflog
+outcomes, validated single-ref compare-and-swap and
 explicit unborn, symbolic and detached HEAD handling through `Repository.refs`.
 
 [Index v2 transactions](docs/index.md) expose format-aware staging snapshots
 and exclusive, explicitly committed writes through `Repository.index`.
+
+[Indexed pack reading](docs/packs.md) provides bounded SHA-1/SHA-256 base-object
+access. Delta resolution, staging/porcelain and network exchange remain queued.
 
 Run `uv sync --locked` and `uv run python -m unittest discover -s tests -v`.
 Git is used only as a test oracle; `GITDX_REQUIRE_GIT=1` makes a missing oracle
