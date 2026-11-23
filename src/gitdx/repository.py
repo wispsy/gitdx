@@ -12,6 +12,7 @@ from .names import InvalidRef, validate_branch, validate_refname
 from .object_store import LooseObjectStore, StoreLimits
 from .objects import ObjectFormat, ObjectId
 from .refs import FilesRefStore
+from .index import IndexFile
 
 
 class RepositoryNotFound(GitdxError, LookupError):
@@ -36,6 +37,12 @@ class Repository:
     @property
     def refs(self) -> FilesRefStore:
         return FilesRefStore(self.git_dir, self.objects)
+
+    @property
+    def index(self) -> IndexFile:
+        if self.bare:
+            raise UnsupportedFormat("bare repositories have no working-tree index")
+        return IndexFile(self.git_dir, self.object_format)
 
     @classmethod
     def init(cls, path: str | os.PathLike[str], *, bare: bool = False,
