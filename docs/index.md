@@ -22,6 +22,9 @@ aborts. Existing locks and unsupported indexes are preserved. Concurrent native
 Git writers share the same lock convention. A successful transaction never
 removes a successor's lock. Caller-owned stale snapshots must not be used as an
 unconditional merge: derive edits from the snapshot inside the locked context.
+An attempted publication consumes the transaction even on I/O failure; leave
+that context and create a fresh transaction to retry. Catching a write/flush
+error cannot make the same stream publish a second snapshot.
 
 Optional uppercase-signature extensions are preserved byte-for-byte for an
 unchanged snapshot. Any entry change drops all optional extensions, including

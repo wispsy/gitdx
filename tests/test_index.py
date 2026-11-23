@@ -122,6 +122,23 @@ class IndexTests(unittest.TestCase):
         self.assertEqual(outside.read_bytes(), b"keep")
 
 
+    def test_failed_commit_cannot_retry_on_a_consumed_stream(self):
+        with self.repo.index.transaction() as tx:
+            tx.replace([IndexEntry(b"before", self.oid)]);tx.commit()
+        before = self.repo.index.path.read_bytes()
+        with self.repo.index.transaction() as tx:
+            tx.replace([IndexEntry(b"after", self.oid)])
+            with patch("gitdx.index.os.fsync", side_effect=OSError("injected")):
+                with self.assertRaises(OSError):tx.commit()
+            with self.assertRaises(RuntimeError):tx.commit()
+            with self.assertRaises(RuntimeError):tx.replace([])
+            self.assertEqual(self.repo.index.path.read_bytes(), before)
+        self.assertFalse((self.repo.git_dir / "index.lock").exists())
+        with self.repo.index.transaction() as tx:
+            tx.replace([IndexEntry(b"after", self.oid)]);tx.commit()
+        self.assertEqual(self.repo.index.read().entries[0].path, b"after")
+
+
 class IndexGitOracleTests(unittest.TestCase):
     setUpClass = classmethod(oracle.GitOracleTests.setUpClass.__func__)
 
