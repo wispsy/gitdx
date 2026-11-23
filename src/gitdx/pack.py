@@ -214,7 +214,8 @@ class RepositoryObjectStore(LooseObjectStore):
                 if len(paths) > self.pack_limits.max_packs:raise ObjectLimitExceeded("pack count exceeds its lookup limit")
         scanned = 0
         for path in sorted(paths):
-            raw_index = read_file(self.path, path, self.pack_limits.max_index_bytes, limit_error=ObjectLimitExceeded)
+            allowance = min(self.pack_limits.max_index_bytes, self.pack_limits.max_scan_bytes - scanned)
+            raw_index = read_file(self.path, path, allowance, limit_error=ObjectLimitExceeded)
             scanned += len(raw_index)
             if scanned > self.pack_limits.max_scan_bytes:raise ObjectLimitExceeded("pack lookup exceeds its aggregate scan budget")
             index = PackIndex.from_bytes(raw_index, self.format, limits=self.pack_limits)

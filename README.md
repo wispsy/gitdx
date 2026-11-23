@@ -26,7 +26,7 @@ print(blob.oid(ObjectFormat.SHA256)) # SHA-256
 [Loose storage](docs/storage.md) adds bounded verified reads and atomic
 publish-if-absent writes under an existing owner-controlled objects directory.
 [Repository lifecycle and plumbing](docs/repositories.md) provide `init`,
-`hash-object` and `cat-file`. Staging, packed objects and network operations
+`hash-object` and `cat-file`. Filesystem staging and network operations
 remain separate milestones.
 
 [Files refs](docs/refs.md) include packed refs, guarded deletion, explicit reflog
