@@ -40,7 +40,8 @@ and exclusive, explicitly committed writes through `Repository.index`.
 ignore rules and byte-oriented porcelain status without invoking Git.
 
 [Indexed pack reading](docs/packs.md) provides bounded SHA-1/SHA-256 base-object
-access. Delta resolution, staging/porcelain and network exchange remain queued.
+access and bounded iterative OFS/REF delta resolution. Commit/checkout porcelain
+and network exchange remain queued.
 
 Run `uv sync --locked` and `uv run python -m unittest discover -s tests -v`.
 Git is used only as a test oracle; `GITDX_REQUIRE_GIT=1` makes a missing oracle
