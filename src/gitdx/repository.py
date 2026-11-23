@@ -57,6 +57,27 @@ class Repository:
         from .working_tree import WorkingTree
         return WorkingTree(self).status()
 
+    def commit(self, *, author, committer, message, expected_head, parents=None, limits=None):
+        from .history import create_commit
+        return create_commit(self, author=author, committer=committer, message=message,
+                             expected_head=expected_head, parents=parents, limits=limits)
+
+    def log(self, start=None, *, max_count=100, limits=None):
+        from .history import log
+        return log(self, start, max_count=max_count, limits=limits)
+
+    def walk_history(self, starts, *, limits=None):
+        from .history import walk_history
+        return walk_history(self, starts, limits=limits)
+
+    def branches(self, *, limits=None):
+        from .history import list_refs
+        return list_refs(self, "refs/heads/", limits=limits)
+
+    def tags(self, *, limits=None):
+        from .history import list_refs
+        return list_refs(self, "refs/tags/", limits=limits)
+
     @classmethod
     def init(cls, path: str | os.PathLike[str], *, bare: bool = False,
              object_format: ObjectFormat = ObjectFormat.SHA1, initial_branch: str = "main") -> Repository:

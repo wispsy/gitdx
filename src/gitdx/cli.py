@@ -40,6 +40,17 @@ def main(argv: list[str] | None = None) -> int:
     status = commands.add_parser("status",help="show deterministic porcelain status")
     status.add_argument("--porcelain",action="store_true")
     status.add_argument("-z",action="store_true",help="NUL-terminate unquoted byte paths")
+    commit = commands.add_parser("commit", help="commit the index with explicit identity and expected HEAD")
+    commit.add_argument("--author", required=True)
+    commit.add_argument("--committer", required=True)
+    commit.add_argument("--expected-head", required=True, help="full object ID or unborn")
+    commit.add_argument("--parent", action="append")
+    commit.add_argument("-m", "--message", required=True)
+    log = commands.add_parser("log", help="bounded parent-order history as JSON lines")
+    log.add_argument("--start")
+    log.add_argument("--max-count", type=int, default=100)
+    commands.add_parser("branches", help="list local branches as JSON lines")
+    commands.add_parser("tags", help="list tags as JSON lines")
     args = parser.parse_args(argv)
     try:
         base = Path(args.directory).absolute()
@@ -80,6 +91,18 @@ def main(argv: list[str] | None = None) -> int:
                 for item in repo.status():
                     name = item.path if args.z else (os.fsdecode(item.path) if all(32<=b<127 and b not in (34,92) for b in item.path) else json.dumps(os.fsdecode(item.path))).encode("utf-8")
                     sys.stdout.buffer.write(item.xy.encode("ascii")+b" "+name+(b"\0" if args.z else b"\n"))
+        elif args.command in ("commit", "log", "branches", "tags"):
+            repo = Repository.discover(base)
+            if args.command == "commit":
+                expected = None if args.expected_head == "unborn" else ObjectId(args.expected_head, repo.object_format)
+                parents = None if args.parent is None else tuple(ObjectId(p, repo.object_format) for p in args.parent)
+                print(repo.commit(author=args.author.encode(), committer=args.committer.encode(), message=args.message.encode()+b"\n", expected_head=expected, parents=parents))
+            elif args.command == "log":
+                for entry in repo.log(ObjectId(args.start, repo.object_format) if args.start else None, max_count=args.max_count):
+                    print(json.dumps({"oid": str(entry.oid), "tree": str(entry.commit.tree), "parents": [str(p) for p in entry.commit.parents], "message": entry.commit.message.decode("utf-8", "backslashreplace")}))
+            else:
+                for name, oid in repo.branches() if args.command == "branches" else repo.tags():
+                    print(json.dumps({"name": name, "oid": str(oid) if oid else None}))
         else:
             repo = Repository.discover(base)
             raw = repo.objects.read(ObjectId(args.oid, repo.object_format))
