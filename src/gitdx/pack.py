@@ -1,7 +1,7 @@
 """Bounded pack/index parsing and verified undeltified-object access."""
 
 from bisect import bisect_left
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, replace
 import hashlib
 from pathlib import Path
 import re
@@ -27,6 +27,9 @@ class PackLimits:
     max_compressed_object_bytes: int = 64 * 1024 * 1024
     max_packs: int = 128
     max_scan_bytes: int = 512 * 1024 * 1024
+    max_delta_depth: int = 64
+    max_delta_operations: int = 1_000_000
+    max_delta_bytes: int = 256 * 1024 * 1024
 
     def __post_init__(self):
         if any(type(getattr(self, f.name)) is not int or getattr(self, f.name) <= 0 for f in fields(self)):
@@ -125,6 +128,7 @@ class PackedEntry:
     size: int
     compressed_start: int
     end: int
+    base: int | ObjectId | None = None
 
 
 class PackFile:
@@ -144,6 +148,7 @@ class PackFile:
         if (physical and physical[0].offset != 12) or (not physical and len(data) != 12 + width):raise InvalidPack("unexpected bytes before pack objects")
         offsets = {e.offset for e in physical}
         self._entries = {}
+        self._offset_ids = {entry.offset:entry.oid for entry in physical}
         for i, entry in enumerate(physical):
             start = entry.offset
             end = physical[i + 1].offset if i + 1 < count else len(data) - width
@@ -157,9 +162,11 @@ class PackFile:
                 size |= (byte & 0x7f) << shift;shift += 7
             if kind not in (1, 2, 3, 4, 6, 7):raise InvalidPack("invalid packed object type")
             if size > self.limits.max_object_bytes:raise ObjectLimitExceeded("packed object size exceeds its limit")
+            base = None
             if kind == 7:
                 if cursor + width > end:raise InvalidPack("truncated REF_DELTA base")
                 if not any(data[cursor:cursor + width]):raise InvalidPack("null REF_DELTA base")
+                base = ObjectId.from_bytes(data[cursor:cursor+width],index.format)
                 cursor += width
             elif kind == 6:
                 if cursor >= end:raise InvalidPack("truncated OFS_DELTA base")
@@ -170,15 +177,20 @@ class PackFile:
                     byte = data[cursor];cursor += 1;size_bytes += 1
                     distance = ((distance + 1) << 7) | (byte & 0x7f)
                 if distance == 0 or start - distance not in offsets or start - distance >= start:raise InvalidPack("OFS_DELTA base is not an earlier object boundary")
+                base = start-distance
             if cursor >= end:raise InvalidPack("missing packed object compression frame")
             if end - cursor > self.limits.max_compressed_object_bytes:raise ObjectLimitExceeded("compressed packed object exceeds its limit")
-            self._entries[start] = PackedEntry(kind, size, cursor, end)
+            self._entries[start] = PackedEntry(kind, size, cursor, end,base)
 
     def read(self, oid: ObjectId) -> RawObject:
-        found = self.index.lookup(oid)
-        if found is None:raise MissingObject(f"object {oid} is not in the pack index")
-        entry = self._entries[found.offset]
-        if entry.kind in (6, 7):raise UnsupportedFormat("packed delta resolution is not implemented yet (DX-12)")
+        from .delta import resolve_delta_chain
+        def locate(current,budget):
+            entry=self.index.lookup(current)
+            if entry is None:raise MissingObject("external REF_DELTA base is absent; standalone packs do not search external storage")
+            return self,entry.offset
+        return resolve_delta_chain(oid,locate,self.limits)
+
+    def _inflate(self,entry):
         decoder = zlib.decompressobj()
         try:
             payload = decoder.decompress(memoryview(self.data)[entry.compressed_start:entry.end], entry.size + 1)
@@ -186,9 +198,7 @@ class PackFile:
             raise InvalidPack("invalid packed object compression") from error
         if len(payload) > entry.size or decoder.unconsumed_tail:raise InvalidPack("packed inflation exceeds its declared size")
         if not decoder.eof or decoder.unused_data or len(payload) != entry.size:raise InvalidPack("packed object size/framing mismatch")
-        obj = RawObject({1: "commit", 2: "tree", 3: "blob", 4: "tag"}[entry.kind], payload)
-        if obj.oid(self.index.format) != oid:raise InvalidPack("packed object hash does not match its index ID")
-        return obj
+        return payload
 
 
 class RepositoryObjectStore(LooseObjectStore):
@@ -202,27 +212,47 @@ class RepositoryObjectStore(LooseObjectStore):
     def read(self, oid: ObjectId) -> RawObject:
         try:return super().read(oid)
         except MissingObject:pass
-        directory = self.path / "pack"
+        from .delta import resolve_delta_chain
+        return resolve_delta_chain(oid,_PackLookup(self).locate,self.pack_limits)
+
+
+class _PackLookup:
+    def __init__(self,store):
+        self.store=store;self.indexes={};self.packs={};self.scanned=0
+        self.paths=self._paths()
+
+    def _paths(self):
+        store=self.store
+        directory = store.path / "pack"
         from .filesystem import check_path
-        check_path(self.path, directory)
-        if not directory.exists():raise MissingObject(f"object {oid} is absent from loose and indexed pack storage")
+        check_path(store.path, directory)
+        if not directory.exists():return ()
         paths = []
         for path in directory.iterdir():
             if path.name.startswith("pack-") and path.suffix == ".idx":
-                if not re.fullmatch(rf"pack-[0-9a-f]{{{self.format.hex_size}}}\.idx", path.name):raise InvalidPack("malformed pack-index filename")
+                if not re.fullmatch(rf"pack-[0-9a-f]{{{store.format.hex_size}}}\.idx", path.name):raise InvalidPack("malformed pack-index filename")
                 paths.append(path)
-                if len(paths) > self.pack_limits.max_packs:raise ObjectLimitExceeded("pack count exceeds its lookup limit")
-        scanned = 0
-        for path in sorted(paths):
-            allowance = min(self.pack_limits.max_index_bytes, self.pack_limits.max_scan_bytes - scanned)
-            raw_index = read_file(self.path, path, allowance, limit_error=ObjectLimitExceeded)
-            scanned += len(raw_index)
-            if scanned > self.pack_limits.max_scan_bytes:raise ObjectLimitExceeded("pack lookup exceeds its aggregate scan budget")
-            index = PackIndex.from_bytes(raw_index, self.format, limits=self.pack_limits)
+                if len(paths) > store.pack_limits.max_packs:raise ObjectLimitExceeded("pack count exceeds its lookup limit")
+        return tuple(sorted(paths))
+
+    def locate(self,oid,budget):
+        store=self.store;limits=store.pack_limits
+        if budget.remaining<=0:raise ObjectLimitExceeded("delta byte budget exhausted before base lookup")
+        loose=LooseObjectStore(store.path,store.format,limits=replace(store.limits,max_object_bytes=min(store.limits.max_object_bytes,budget.remaining)))
+        try:return loose.read(oid)
+        except MissingObject:pass
+        for path in self.paths:
+            if path not in self.indexes:
+                allowance=min(limits.max_index_bytes,limits.max_scan_bytes-self.scanned)
+                raw_index=read_file(store.path,path,allowance,limit_error=ObjectLimitExceeded);self.scanned+=len(raw_index)
+                self.indexes[path]=PackIndex.from_bytes(raw_index,store.format,limits=limits)
+            index=self.indexes[path]
             if path.stem[5:] != index.pack_checksum.hex():raise InvalidPack("pack filename does not match its checksum")
-            if index.lookup(oid) is None:continue
-            pack_path = path.with_suffix(".pack")
-            remaining = min(self.pack_limits.max_pack_bytes, self.pack_limits.max_scan_bytes - scanned)
-            data = read_file(self.path, pack_path, remaining, limit_error=ObjectLimitExceeded)
-            return PackFile(data, index, limits=self.pack_limits).read(oid)
+            found=index.lookup(oid)
+            if found is None:continue
+            if path not in self.packs:
+                remaining=min(limits.max_pack_bytes,limits.max_scan_bytes-self.scanned)
+                data=read_file(store.path,path.with_suffix(".pack"),remaining,limit_error=ObjectLimitExceeded);self.scanned+=len(data)
+                self.packs[path]=PackFile(data,index,limits=limits)
+            return self.packs[path],found.offset
         raise MissingObject(f"object {oid} is absent from loose and indexed pack storage")

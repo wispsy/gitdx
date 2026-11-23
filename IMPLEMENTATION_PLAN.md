@@ -322,3 +322,4 @@ Later broad workstream/decision items must be split before implementation.
 | [CAT-17](https://github.com/wispsy/gittycat/issues/17) | gittycat: Immutable cross-repository installation profile | Composition | CAT-03, DX-04 |
 | [DX-FIX-01](https://github.com/wispsy/gitdx/issues/38) | gitdx: Stop discovery at incomplete repository metadata | 0.1 Objects | DX-03 |
 | [DX-FIX-02](https://github.com/wispsy/gitdx/issues/43) | gitdx: Abort an index transaction after failed publication | 0.2 Local | DX-05 |
+| [DX-FIX-03](https://github.com/wispsy/gitdx/issues/47) | gitdx: Bound directory enumeration before sorting | 0.2 Local | DX-06 |

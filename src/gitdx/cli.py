@@ -3,6 +3,8 @@
 import argparse
 from pathlib import Path
 import sys
+import json
+import os
 
 from .errors import GitdxError
 from .object_store import ObjectLimitExceeded, StoreLimits
@@ -32,6 +34,12 @@ def main(argv: list[str] | None = None) -> int:
     detail = cat.add_mutually_exclusive_group()
     detail.add_argument("-t", "--type", action="store_true")
     detail.add_argument("-s", "--size", action="store_true")
+    add = commands.add_parser("add", help="stage explicit files/directories and tracked removals")
+    add.add_argument("paths",nargs="+")
+    add.add_argument("-f","--force",action="store_true")
+    status = commands.add_parser("status",help="show deterministic porcelain status")
+    status.add_argument("--porcelain",action="store_true")
+    status.add_argument("-z",action="store_true",help="NUL-terminate unquoted byte paths")
     args = parser.parse_args(argv)
     try:
         base = Path(args.directory).absolute()
@@ -63,6 +71,15 @@ def main(argv: list[str] | None = None) -> int:
             parse_object(raw, format)
             oid = repo.objects.write(raw) if args.write else raw.oid(format)
             sys.stdout.buffer.write(oid.hex.encode("ascii") + b"\n")
+        elif args.command in ("add","status"):
+            repo = Repository.discover(base)
+            if args.command=="add":
+                selected = [(base / p).relative_to(repo.work_tree).as_posix() for p in args.paths]
+                repo.add(*selected,force=args.force)
+            else:
+                for item in repo.status():
+                    name = item.path if args.z else (os.fsdecode(item.path) if all(32<=b<127 and b not in (34,92) for b in item.path) else json.dumps(os.fsdecode(item.path))).encode("utf-8")
+                    sys.stdout.buffer.write(item.xy.encode("ascii")+b" "+name+(b"\0" if args.z else b"\n"))
         else:
             repo = Repository.discover(base)
             raw = repo.objects.read(ObjectId(args.oid, repo.object_format))

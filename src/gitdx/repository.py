@@ -45,6 +45,18 @@ class Repository:
             raise UnsupportedFormat("bare repositories have no working-tree index")
         return IndexFile(self.git_dir, self.object_format)
 
+    def add(self, *paths, force=False):
+        from .working_tree import WorkingTree
+        return WorkingTree(self).add(paths,force=force)
+
+    def remove(self, *paths):
+        from .working_tree import WorkingTree
+        return WorkingTree(self).remove(paths)
+
+    def status(self):
+        from .working_tree import WorkingTree
+        return WorkingTree(self).status()
+
     @classmethod
     def init(cls, path: str | os.PathLike[str], *, bare: bool = False,
              object_format: ObjectFormat = ObjectFormat.SHA1, initial_branch: str = "main") -> Repository:

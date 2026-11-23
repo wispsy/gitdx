@@ -12,6 +12,8 @@ from .packed_refs import PackedRef, PackedRefs
 from .reflog import ReflogReceipt, ReflogUpdate
 from .refs import RefUpdateResult
 from .pack import InvalidPack, PackFile, PackIndex, PackIndexEntry, PackLimits, RepositoryObjectStore
+from .working_tree import IgnoredPath, StatusEntry, WorkingTree, WorktreeLimits
+from .delta import apply_delta
 
 __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFormat",
            "ObjectId", "ObjectType", "RawObject", "Tag", "Tree", "TreeEntry",
@@ -21,6 +23,8 @@ __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFor
 __all__ += ["Index", "IndexEntry", "IndexExtension", "IndexFile", "IndexLimits", "IndexLocked", "IndexStat", "InvalidIndex"]
 __all__ += ["PackedRef", "PackedRefs", "ReflogReceipt", "ReflogUpdate", "RefUpdateResult"]
 __all__ += ["InvalidPack", "PackFile", "PackIndex", "PackIndexEntry", "PackLimits", "RepositoryObjectStore"]
+__all__ += ["IgnoredPath", "StatusEntry", "WorkingTree", "WorktreeLimits"]
+__all__ += ["apply_delta"]
 
 
 def main() -> None:
