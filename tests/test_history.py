@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 from gitdx import (Blob, Commit, DirectRef, HistoryLimits, IndexEntry, InvalidObject,
                    ObjectFormat, ObjectLimitExceeded, RefConflict, Repository, Tree, UnsupportedFormat)
-from test_objects import IDENTITY, GitOracleTests, git
+import test_objects as oracle
+from test_objects import IDENTITY, git
 
 
 class HistoryTests(unittest.TestCase):
@@ -54,6 +55,26 @@ class HistoryTests(unittest.TestCase):
         with self.assertRaises(ObjectLimitExceeded):self.commit(limits=HistoryLimits(max_depth=1))
         self.assertTrue(self.repo.refs.resolve().unborn)
 
+    def test_transient_checkout_during_snapshot_cannot_select_another_branch(self):
+        (self.root/"file").write_bytes(b"staged");self.repo.add("file")
+        first = self.commit();self.repo.refs.update("refs/heads/other",first,expected=None)
+        before = self.repo.index.path.read_bytes()
+        kind = type(self.repo.refs);original = kind.resolve;injected = False
+        def transient(store, name="HEAD"):
+            nonlocal injected
+            if name != "HEAD" or injected:return original(store,name)
+            injected = True
+            captured = store.read("HEAD")
+            store.set_symbolic("HEAD","refs/heads/other",expected=captured)
+            result = original(store,"HEAD")
+            store.set_symbolic("HEAD",captured.target,expected=store.read("HEAD"))
+            return result
+        with patch.object(kind,"resolve",transient), patch.object(type(self.repo.objects),"write",side_effect=AssertionError("objects written before a consistent HEAD snapshot")):
+            with self.assertRaises(RefConflict):self.commit(first)
+        self.assertEqual(self.repo.refs.read("refs/heads/main"),DirectRef(first))
+        self.assertEqual(self.repo.refs.read("refs/heads/other"),DirectRef(first))
+        self.assertEqual(self.repo.index.path.read_bytes(),before)
+
     def test_iterative_deep_history_deduplication_and_budgets(self):
         tree = self.repo.objects.write(Tree().to_raw());parent = None
         for _ in range(1100):
@@ -75,7 +96,7 @@ class HistoryTests(unittest.TestCase):
 
 
 class HistoryGitTests(unittest.TestCase):
-    setUpClass = classmethod(GitOracleTests.setUpClass.__func__)
+    setUpClass = classmethod(oracle.GitOracleTests.setUpClass.__func__)
 
     def test_root_repeat_merge_trees_refs_and_fsck_both_formats(self):
         for format in ObjectFormat:

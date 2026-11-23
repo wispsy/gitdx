@@ -5,7 +5,8 @@ import unittest
 from gitdx import (Blob, Commit, InvalidObject, MissingObject, ObjectFormat, ObjectId,
                    ObjectLimitExceeded, ObjectType, PackFile, PackIndex, PackWriteLimits,
                    Repository, Tag, Tree, TreeEntry)
-from test_objects import IDENTITY, GitOracleTests, git
+import test_objects as oracle
+from test_objects import IDENTITY, git
 
 
 class PackWriterTests(unittest.TestCase):
@@ -44,7 +45,7 @@ class PackWriterTests(unittest.TestCase):
 
 
 class PackWriterGitTests(unittest.TestCase):
-    setUpClass = classmethod(GitOracleTests.setUpClass.__func__)
+    setUpClass = classmethod(oracle.GitOracleTests.setUpClass.__func__)
 
     def test_git_index_unpack_and_fsck_for_empty_merge_tag_graphs_both_formats(self):
         for format in ObjectFormat:
