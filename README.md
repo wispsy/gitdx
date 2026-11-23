@@ -36,6 +36,9 @@ explicit unborn, symbolic and detached HEAD handling through `Repository.refs`.
 [Index v2 transactions](docs/index.md) expose format-aware staging snapshots
 and exclusive, explicitly committed writes through `Repository.index`.
 
+[Staging/status](docs/working-tree.md) adds explicit paths/removals, scoped
+ignore rules and byte-oriented porcelain status without invoking Git.
+
 [Indexed pack reading](docs/packs.md) provides bounded SHA-1/SHA-256 base-object
 access. Delta resolution, staging/porcelain and network exchange remain queued.
 

@@ -12,6 +12,8 @@ class RepositoryConfig:
     version: int
     bare: bool
     object_format: ObjectFormat
+    filemode: bool = True
+    symlinks: bool = True
 
 
 def parse_config(data: bytes) -> RepositoryConfig:
@@ -79,4 +81,4 @@ def parse_config(data: bytes) -> RepositoryConfig:
         raise UnsupportedFormat("unsupported repository object format") from error
     if ("core", "worktree") in values or boolean("sparsecheckout"):
         raise UnsupportedFormat("custom worktrees and sparse checkout are not supported yet")
-    return RepositoryConfig(int(version), boolean("bare"), format)
+    return RepositoryConfig(int(version), boolean("bare"), format, boolean("filemode","true"), boolean("symlinks","true"))
