@@ -96,7 +96,7 @@ class RefTests(unittest.TestCase):
 
     def test_packed_refs_override_and_changed_config_refuse_mutation(self):
         packed = self.repo.git_dir / "packed-refs"
-        packed.write_text(f"# pack-refs with: peeled\n{self.first} refs/heads/main\n")
+        packed.write_bytes(f"# pack-refs with: peeled\n{self.first} refs/heads/main\n".encode("ascii"))
         self.refs.update("refs/heads/main", self.second, expected=self.first)
         self.assertEqual(self.refs.read("refs/heads/main"), DirectRef(self.second))
         packed.unlink()
