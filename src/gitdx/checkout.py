@@ -7,7 +7,7 @@ import stat
 import unicodedata
 
 from .errors import GitdxError, InvalidObject, UnsupportedFormat
-from .filesystem import UnsafePath, check_path, read_file
+from .filesystem import UnsafePath, check_path, is_reparse_point, read_file
 from .index import Index, IndexEntry
 from .names import validate_branch
 from .object_store import ObjectLimitExceeded
@@ -144,10 +144,12 @@ def _capture(root, raw, budget):
         path /= part
         try:info = path.lstat()
         except FileNotFoundError:return None
+        if is_reparse_point(info) and not stat.S_ISLNK(info.st_mode):raise UnsafePath("checkout parent is a reparse point")
         if not stat.S_ISDIR(info.st_mode):return None
     path /= parts[-1]
     try:before = path.lstat()
     except (FileNotFoundError, NotADirectoryError):return None
+    if is_reparse_point(before) and not stat.S_ISLNK(before.st_mode):raise UnsafePath("checkout path is a reparse point")
     permissions = stat.S_IMODE(before.st_mode)
     if os.name=="nt":
         if not permissions&stat.S_IWUSR:raise UnsupportedFormat("Windows checkout requires writable affected paths")
