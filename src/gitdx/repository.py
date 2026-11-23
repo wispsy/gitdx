@@ -11,6 +11,7 @@ from .filesystem import check_path, read_file
 from .names import InvalidRef, validate_branch, validate_refname
 from .object_store import LooseObjectStore, StoreLimits
 from .objects import ObjectFormat, ObjectId
+from .refs import FilesRefStore
 
 
 class RepositoryNotFound(GitdxError, LookupError):
@@ -31,6 +32,10 @@ class Repository:
     @property
     def object_format(self) -> ObjectFormat:
         return self.config.object_format
+
+    @property
+    def refs(self) -> FilesRefStore:
+        return FilesRefStore(self.git_dir, self.objects)
 
     @classmethod
     def init(cls, path: str | os.PathLike[str], *, bare: bool = False,

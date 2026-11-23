@@ -29,6 +29,9 @@ publish-if-absent writes under an existing owner-controlled objects directory.
 `hash-object` and `cat-file`. Staging, packed objects and network operations
 remain separate milestones.
 
+[Loose refs](docs/refs.md) provide validated single-ref compare-and-swap and
+explicit unborn, symbolic and detached HEAD handling through `Repository.refs`.
+
 Run `uv sync --locked` and `uv run python -m unittest discover -s tests -v`.
 Git is used only as a test oracle; `GITDX_REQUIRE_GIT=1` makes a missing oracle
 an error. `uv run python scripts/check_distribution.py` checks isolated wheel
