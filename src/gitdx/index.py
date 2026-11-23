@@ -272,11 +272,14 @@ class IndexTransaction:
         if self._stream is None:
             raise RuntimeError("index transaction is not active")
         data = self.index.encode(self.file.limits)
-        self._stream.write(data)
-        self._stream.flush()
-        os.fsync(self._stream.fileno())
-        self._stream.close()
+        stream = self._stream
+        # An attempted publication consumes the stream even when an I/O error
+        # is caught inside the context. Retrying cannot append a second index.
         self._stream = None
+        with stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
         self.file._profile()
         check_path(self.file.git_dir, self.file.path)
         os.replace(self.lock, self.file.path)
