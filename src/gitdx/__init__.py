@@ -17,6 +17,13 @@ from .delta import apply_delta
 from .history import HistoryEntry, HistoryLimits
 from .pack_writer import PackBundle, PackWriteLimits, reachable_objects, write_pack
 from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, CheckoutPlan, CheckoutRecoveryRequired
+from .checkout_transaction import CheckoutResult
+from .pktline import (DELIMITER, FLUSH, RESPONSE_END, Packet, PacketDecoder, PacketKind, ProtocolBudget,
+                      ProtocolCancelled, ProtocolError, ProtocolLimitExceeded, ProtocolLimits, ProtocolTimeout,
+                      RemoteProtocolError, Sideband, decode_sideband, encode_packet, encode_sideband, read_packets, write_packets)
+from .protocol import (Advertisement, AdvertisedRef, Capability, LegacyRequest, Negotiated, ObjectFormatMismatch, V2Command,
+                       encode_advertisement, encode_legacy_request, encode_v2_command, negotiate, parse_ack,
+                       parse_advertisement, parse_legacy_request, parse_ls_refs, parse_v2_command)
 
 __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFormat",
            "ObjectId", "ObjectType", "RawObject", "Tag", "Tree", "TreeEntry",
@@ -31,6 +38,13 @@ __all__ += ["apply_delta"]
 __all__ += ["HistoryEntry", "HistoryLimits"]
 __all__ += ["PackBundle", "PackWriteLimits", "reachable_objects", "write_pack"]
 __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPlan", "CheckoutRecoveryRequired"]
+__all__ += ["CheckoutResult"]
+__all__ += ["DELIMITER", "FLUSH", "RESPONSE_END", "Packet", "PacketDecoder", "PacketKind", "ProtocolBudget", "ProtocolCancelled",
+            "ProtocolError", "ProtocolLimitExceeded", "ProtocolLimits", "ProtocolTimeout", "RemoteProtocolError", "Sideband",
+            "decode_sideband", "encode_packet", "encode_sideband", "read_packets", "write_packets"]
+__all__ += ["Advertisement", "AdvertisedRef", "Capability", "LegacyRequest", "Negotiated", "ObjectFormatMismatch", "V2Command",
+            "encode_advertisement", "encode_legacy_request", "encode_v2_command", "negotiate", "parse_ack", "parse_advertisement",
+            "parse_legacy_request", "parse_ls_refs", "parse_v2_command"]
 
 
 def main() -> None:

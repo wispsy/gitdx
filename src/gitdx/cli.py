@@ -51,6 +51,13 @@ def main(argv: list[str] | None = None) -> int:
     log.add_argument("--max-count", type=int, default=100)
     commands.add_parser("branches", help="list local branches as JSON lines")
     commands.add_parser("tags", help="list tags as JSON lines")
+    checkout = commands.add_parser("checkout",help="apply a safe checkout or print its reviewed changes")
+    checkout.add_argument("destination")
+    checkout.add_argument("--detach",action="store_true",help="destination is a full commit ID")
+    checkout.add_argument("--unborn",action="store_true",help="explicitly select an absent branch with an empty tree")
+    checkout.add_argument("--overwrite-tracked",action="store_true",help="discard tracked changes; untracked content stays protected")
+    checkout.add_argument("--dry-run",action="store_true",help="print the immutable plan without mutation")
+    commands.add_parser("recover-checkout",help="roll back an interrupted checkout or finalize a committed journal")
     args = parser.parse_args(argv)
     try:
         base = Path(args.directory).absolute()
@@ -91,6 +98,19 @@ def main(argv: list[str] | None = None) -> int:
                 for item in repo.status():
                     name = item.path if args.z else (os.fsdecode(item.path) if all(32<=b<127 and b not in (34,92) for b in item.path) else json.dumps(os.fsdecode(item.path))).encode("utf-8")
                     sys.stdout.buffer.write(item.xy.encode("ascii")+b" "+name+(b"\0" if args.z else b"\n"))
+        elif args.command in ("checkout","recover-checkout"):
+            repo = Repository.discover(base)
+            if args.command=="checkout":
+                destination=ObjectId(args.destination,repo.object_format) if args.detach else args.destination
+                plan=repo.plan_checkout(destination,unborn=args.unborn,overwrite_tracked=args.overwrite_tracked)
+                if args.dry_run:
+                    print(json.dumps({"target":str(plan.target) if plan.target else None,"target_ref":plan.target_name,
+                                      "overwrite_tracked":plan.overwrite_tracked,"changes":[{"path_hex":c.path.hex(),"before_mode":c.before_mode,"after_mode":c.after_mode,
+                                      "before_oid":str(c.before_oid) if c.before_oid else None,"after_oid":str(c.after_oid) if c.after_oid else None} for c in plan.changes]}))
+                    return 0
+                result=repo.apply_checkout(plan)
+            else:result=repo.recover_checkout()
+            print(json.dumps({"target":str(result.target) if result.target else None,"rolled_back":result.rolled_back,"cleanup_pending":result.cleanup_pending}))
         elif args.command in ("commit", "log", "branches", "tags"):
             repo = Repository.discover(base)
             if args.command == "commit":

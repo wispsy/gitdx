@@ -248,6 +248,9 @@ class IndexTransaction:
         if self._used:
             raise RuntimeError("index transactions cannot be reused")
         self._used = True
+        pending = self.file.git_dir/"checkout-state"
+        check_path(self.file.git_dir,pending)
+        if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
         self.file._profile()
         check_path(self.file.git_dir, self.lock)
         try:
@@ -257,6 +260,8 @@ class IndexTransaction:
         self._owns_lock = True
         self._stream = os.fdopen(fd, "wb")
         try:
+            check_path(self.file.git_dir,pending)
+            if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
             self._index = self.file.read()
         except BaseException:
             self.__exit__(None, None, None)
