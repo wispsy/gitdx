@@ -29,7 +29,7 @@ Git's [path checks](https://github.com/git/git/blob/master/path.c) and
 External filters, active attributes and line-ending transformations remain
 unsupported. POSIX link values are bounded to 1,023 bytes; Windows requires
 `core.symlinks=false` to represent a committed link as a regular link-text file.
-New files/directories use owner-only permissions; existing regular permissions
+On POSIX, new files/directories use owner-only permissions; existing regular permissions
 are retained without special bits, with the user executable bit adjusted when
 filemode applies. The rebuilt v2 index retains target Git modes and drops advisory
 cache extensions/assume-valid flags.
@@ -71,6 +71,7 @@ repository data. Journal metadata is capped at 32 MiB and payloads at 512 MiB.
 Windows requires `core.filemode=false` and writable affected paths; native links
 require the link-text profile. Windows permission reporting is normalized to
 writable regular/directory attributes, while the index retains Git's mode.
+Windows directory ACLs remain caller-controlled.
 
 CLI `gitdx checkout BRANCH --dry-run` prints paths as hex plus mode/content-ID
 changes. Omit `--dry-run` to apply; `--detach` selects a full commit ID,

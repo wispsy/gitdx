@@ -13,6 +13,9 @@ native-format non-delta packs with v2 indexes, without a Git runtime.
 [Safe checkout](docs/checkout.md) provides reviewable plans, protected untracked
 content, explicit tracked overwrite and guarded journal recovery.
 
+[Protocol framing](docs/protocol.md) adds bounded packet/sideband streams,
+v0/v1 discovery and v2 command boundaries with explicit same-format negotiation.
+
 Development starts with the [implementation plan](IMPLEMENTATION_PLAN.md) and
 [shared Project](https://github.com/orgs/wispsy/projects/30). The roadmap records
 qualification targets; remote exchange and public hosting are later milestones.
