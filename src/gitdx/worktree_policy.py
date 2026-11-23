@@ -46,7 +46,7 @@ def excludes_file(repo, config):
     value = values[-1]
     if value is None:raise UnsupportedFormat("exclude file requires a path value")
     path = Path(value)
-    if path.is_absolute() or '..' in path.parts or value.startswith('~') or '\\' in value or ':' in value:
+    if path.anchor or '..' in path.parts or value.startswith(('~','/')) or '\\' in value or ':' in value:
         raise UnsupportedFormat("exclude file must be relative to the working-tree root")
     root = repo.work_tree
     try:return read_file(root,root/path,1024*1024)
