@@ -82,6 +82,10 @@ class Repository:
         from .pack_writer import write_pack
         return write_pack(self.objects, roots, limits=limits)
 
+    def plan_checkout(self, destination, *, unborn=False, overwrite_tracked=False, limits=None):
+        from .checkout import plan_checkout
+        return plan_checkout(self, destination, unborn=unborn, overwrite_tracked=overwrite_tracked, limits=limits)
+
     @classmethod
     def init(cls, path: str | os.PathLike[str], *, bare: bool = False,
              object_format: ObjectFormat = ObjectFormat.SHA1, initial_branch: str = "main") -> Repository:

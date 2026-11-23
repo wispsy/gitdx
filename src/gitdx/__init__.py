@@ -16,6 +16,7 @@ from .working_tree import IgnoredPath, StatusEntry, WorkingTree, WorktreeLimits
 from .delta import apply_delta
 from .history import HistoryEntry, HistoryLimits
 from .pack_writer import PackBundle, PackWriteLimits, reachable_objects, write_pack
+from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, CheckoutPlan, CheckoutRecoveryRequired
 
 __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFormat",
            "ObjectId", "ObjectType", "RawObject", "Tag", "Tree", "TreeEntry",
@@ -29,6 +30,7 @@ __all__ += ["IgnoredPath", "StatusEntry", "WorkingTree", "WorktreeLimits"]
 __all__ += ["apply_delta"]
 __all__ += ["HistoryEntry", "HistoryLimits"]
 __all__ += ["PackBundle", "PackWriteLimits", "reachable_objects", "write_pack"]
+__all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPlan", "CheckoutRecoveryRequired"]
 
 
 def main() -> None:
