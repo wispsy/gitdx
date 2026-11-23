@@ -1,13 +1,17 @@
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 import os
 import tempfile
 import unittest
 import subprocess
 import sys
+from unittest.mock import patch
 
 from gitdx import Blob,Commit,IgnoredPath,ObjectFormat,Repository,Tree,TreeEntry,UnsafePath,UnsupportedFormat
 import test_objects as oracle
 from test_objects import IDENTITY,git
+from gitdx.working_tree import WorkingTree, WorktreeLimits
 
 
 def head(repo):
@@ -59,6 +63,25 @@ class WorkingTreeTests(unittest.TestCase):
         (self.root/".gitignore").write_bytes(b"dir/\n!dir/file\n")
         (self.root/"dir").mkdir();(self.root/"dir/file").write_bytes(b"x")
         self.repo.add(".");self.assertNotIn(b"dir/file",{e.path for e in self.repo.index.read().entries})
+
+    def test_directory_enumeration_stops_at_limit_and_preserves_index(self):
+        (self.root/"file").write_bytes(b"keep");self.repo.add("file")
+        before=self.repo.index.path.read_bytes();visited=[]
+        @contextmanager
+        def large_directory(path):
+            def entries():
+                yield SimpleNamespace(name=".git")
+                for i in range(1000):
+                    visited.append(i)
+                    if i>2:raise AssertionError("continued scanning after the first excess entry")
+                    yield SimpleNamespace(name=f"path-{i}")
+            yield entries()
+        with patch("gitdx.working_tree.os.scandir",large_directory):
+            with self.assertRaisesRegex(UnsupportedFormat,"path count"):
+                WorkingTree(self.repo,limits=WorktreeLimits(max_paths=2)).add((".",))
+        self.assertEqual(visited,[0,1,2])
+        self.assertEqual(self.repo.index.path.read_bytes(),before)
+        self.assertEqual((self.root/"file").read_bytes(),b"keep")
 
     def test_metadata_traversal_case_alias_and_filters_preserve_index(self):
         (self.root/"file").write_bytes(b"keep");self.repo.add("file")

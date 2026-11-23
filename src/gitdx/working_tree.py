@@ -119,11 +119,14 @@ class WorkingTree:
             if base and (directory/".git").exists():raise UnsupportedFormat("nested repositories/submodules are unsupported")
             attributes = self._metadata(directory/".gitattributes")
             if any(line.strip() and not line.lstrip().startswith(b"#") for line in attributes.splitlines()):raise UnsupportedFormat("working-tree attribute transformations are unsupported")
-            with os.scandir(directory) as iterator:children = sorted(iterator,key=lambda e:os.fsencode(e.name))
-            for child in children:
-                if not base and child.name == ".git":continue
+            children = []
+            with os.scandir(directory) as iterator:
+                for child in iterator:
+                    if not base and child.name == ".git":continue
+                    if len(nodes)+len(children) >= self.limits.max_paths:raise UnsupportedFormat("working-tree path count exceeds its limit")
+                    children.append(child)
+            for child in sorted(children,key=lambda e:os.fsencode(e.name)):
                 raw = (base+b"/" if base else b"") + os.fsencode(child.name);register(raw)
-                if len(nodes) >= self.limits.max_paths:raise UnsupportedFormat("working-tree path count exceeds its limit")
                 # Windows DirEntry caches omit file identifiers used below.
                 info = Path(child.path).lstat()
                 is_dir = stat.S_ISDIR(info.st_mode)
