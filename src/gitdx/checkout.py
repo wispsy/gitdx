@@ -149,6 +149,9 @@ def _capture(root, raw, budget):
     try:before = path.lstat()
     except (FileNotFoundError, NotADirectoryError):return None
     permissions = stat.S_IMODE(before.st_mode)
+    if os.name=="nt":
+        if not permissions&stat.S_IWUSR:raise UnsupportedFormat("Windows checkout requires writable affected paths")
+        permissions = 0o777 if stat.S_ISDIR(before.st_mode) else 0o666
     if stat.S_ISDIR(before.st_mode):return FileValue(0o40000,b"",permissions)
     if stat.S_ISLNK(before.st_mode):
         data = os.fsencode(os.readlink(path));mode = 0o120000;permissions = 0
@@ -158,7 +161,7 @@ def _capture(root, raw, budget):
             info = os.fstat(stream.fileno())
             if not stat.S_ISREG(info.st_mode) or (info.st_dev,info.st_ino)!=(before.st_dev,before.st_ino):raise CheckoutConflict("working file changed during planning")
             data = stream.read(budget.limits.max_file_bytes+1)
-        mode = 0o100755 if before.st_mode&stat.S_IXUSR else 0o100644
+        mode = 0o100755 if os.name!="nt" and before.st_mode&stat.S_IXUSR else 0o100644
     else:raise UnsupportedFormat("checkout encountered a non-regular working file")
     after = path.lstat()
     if (before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns,before.st_ctime_ns,before.st_mode)!=(after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns,after.st_ctime_ns,after.st_mode):
@@ -176,6 +179,7 @@ def plan_checkout(repo, destination, *, unborn=False, overwrite_tracked=False, l
     if type(unborn) is not bool or type(overwrite_tracked) is not bool:raise TypeError("checkout policies must be explicit booleans")
     budget = _Budget(limits)
     work = WorkingTree(repo,limits=WorktreeLimits(limits.max_paths,limits.max_file_bytes,limits.max_bytes))
+    if os.name=="nt" and work.filemode:raise UnsupportedFormat("Windows checkout requires core.filemode=false")
     config = read_file(repo.git_dir,repo.git_dir/"config",1024*1024)
     refs = repo.refs;head = refs.read("HEAD");source = refs.resolve()
     if not isinstance(head,(DirectRef,SymbolicRef)):raise InvalidObject("checkout requires an existing HEAD")
@@ -233,7 +237,7 @@ def plan_checkout(repo, destination, *, unborn=False, overwrite_tracked=False, l
         if before[path] and before[path].mode==0o40000 and path not in protected_dirs:after[path]=None
     for path in wanted_dirs:
         value = before[path]
-        after[path] = value if value and value.mode==0o40000 else FileValue(0o40000,b"",0o700)
+        after[path] = value if value and value.mode==0o40000 else FileValue(0o40000,b"",0o777 if os.name=="nt" else 0o700)
     for path,(oid,mode) in wanted.items():
         raw = repo.objects.read(oid)
         if raw.kind is not ObjectType.BLOB:raise InvalidObject("checkout file must name a blob")
@@ -250,6 +254,7 @@ def plan_checkout(repo, destination, *, unborn=False, overwrite_tracked=False, l
             executable = mode==0o100755
             if not work.filemode and previous and previous.mode in (0o100644,0o100755):executable=previous.mode==0o100755
             permissions = (permissions|stat.S_IXUSR) if executable else (permissions&~0o111)
+            if os.name=="nt":permissions=0o666;executable=False
             value = FileValue(0o100755 if executable else 0o100644,raw.data,permissions)
         after[path]=value
     changes = tuple(CheckoutChange(p,before[p].mode if before[p] else None,after[p].mode if after[p] else None,_value_id(before[p],repo.object_format),_value_id(after[p],repo.object_format)) for p in sorted(affected) if before[p]!=after[p])

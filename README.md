@@ -10,6 +10,9 @@ and expected-HEAD publication, plus bounded parent-order history and ref listing
 [Pack writing](docs/pack-writing.md) validates selected object closures and emits
 native-format non-delta packs with v2 indexes, without a Git runtime.
 
+[Safe checkout](docs/checkout.md) provides reviewable plans, protected untracked
+content, explicit tracked overwrite and guarded journal recovery.
+
 Development starts with the [implementation plan](IMPLEMENTATION_PLAN.md) and
 [shared Project](https://github.com/orgs/wispsy/projects/30). The roadmap records
 qualification targets; remote exchange and public hosting are later milestones.
@@ -46,8 +49,7 @@ and exclusive, explicitly committed writes through `Repository.index`.
 ignore rules and byte-oriented porcelain status without invoking Git.
 
 [Indexed pack reading](docs/packs.md) provides bounded SHA-1/SHA-256 base-object
-access and bounded iterative OFS/REF delta resolution. Checkout porcelain
-and network exchange remain queued.
+access and bounded iterative OFS/REF delta resolution. Network exchange remains queued.
 
 Run `uv sync --locked` and `uv run python -m unittest discover -s tests -v`.
 Git is used only as a test oracle; `GITDX_REQUIRE_GIT=1` makes a missing oracle

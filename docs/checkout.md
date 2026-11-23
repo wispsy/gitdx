@@ -38,3 +38,43 @@ Default limits are 100,000 tree/working paths, depth 128, 64 MiB per file and
 256 MiB combined planning content. Checks assume owner-controlled directories;
 they are not a sandbox against hostile concurrent path replacement. Applying a
 reviewed plan and interrupted-write recovery are separate explicit operations.
+
+## Application and recovery
+
+`repo.apply_checkout(plan)` revalidates the entire plan under index, HEAD,
+packed-ref and source/target branch locks. A stale or modified plan is refused.
+Before changing working files it publishes a private `.git/checkout-state`
+journal containing verified old/new payloads, the old/new index, explicit HEAD
+states and a config digest. Working changes use atomic leaf replacements; index
+publication precedes HEAD publication. Source/destination branches never move.
+Checkout does not infer identity or write reflogs.
+
+An interrupted application raises `CheckoutRecoveryRequired` and retains the
+journal. Further Gitdx index/ref mutations are blocked. After reopening the
+repository, explicitly call `repo.recover_checkout()`: an unfinished application
+rolls back to its captured files/index/HEAD; a journal already marked committed
+is validated and finalized. Recovery can itself be retried after interruption.
+It refuses outside edits, moved refs, changed config/index, unexpected untracked
+children or invalid/tampered journal data rather than overwriting them. Move or
+preserve that outside work and inspect the retained state before retrying.
+
+`CheckoutResult` reports target, HEAD, whether recovery rolled back, and whether
+cleanup remains. A completed journal is atomically retired before deletion;
+cleanup failures may leave an owned `checkout-complete-*` directory. Preparation
+or crashes inside a temporary write may leave owned temporary artifacts for
+inspection. No multi-file atomic view, hostile-filesystem protection or power-loss
+durability is claimed. Do not run native Git mutations during pending recovery;
+native Git does not honor this journal marker. Stale process-crash lock files
+require owner inspection before recovery. Backups must be protected as private
+repository data. Journal metadata is capped at 32 MiB and payloads at 512 MiB.
+
+Windows requires `core.filemode=false` and writable affected paths; native links
+require the link-text profile. Windows permission reporting is normalized to
+writable regular/directory attributes, while the index retains Git's mode.
+
+CLI `gitdx checkout BRANCH --dry-run` prints paths as hex plus mode/content-ID
+changes. Omit `--dry-run` to apply; `--detach` selects a full commit ID,
+`--unborn` selects an absent branch, and `--overwrite-tracked` explicitly discards
+tracked changes. `gitdx recover-checkout` performs guarded recovery. The Python
+API can retain and apply the exact reviewed immutable plan; CLI application
+always creates and validates a fresh plan.
