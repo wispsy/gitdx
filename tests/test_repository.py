@@ -46,6 +46,21 @@ class RepositoryTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             Repository.init(self.path, bare=True)
 
+    def test_incomplete_nested_metadata_stops_discovery(self):
+        outer = Repository.init(self.path)
+        for layout in ("marker", "bare"):
+            nested = self.path / layout
+            nested.mkdir()
+            if layout == "marker":
+                (nested / ".git").mkdir()
+            else:
+                (nested / "objects").mkdir()
+                (nested / "HEAD").write_bytes(b"ref: refs/heads/main\n")
+            with self.subTest(layout=layout), self.assertRaises(UnsupportedFormat):
+                Repository.discover(nested).objects.write(Blob(b"wrong repository").to_raw())
+        oid = Blob(b"wrong repository").to_raw().oid()
+        self.assertFalse(outer.objects.object_path(oid).exists())
+
     def test_invalid_branch_has_no_filesystem_effect(self):
         for branch in ("../escape", "foo.lock/bar", "bad branch", "", "-main", "CON"):
             path = self.path / "new"

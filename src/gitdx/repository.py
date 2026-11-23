@@ -93,9 +93,15 @@ class Repository:
         check_path(root, marker)
         if marker.is_file():
             raise UnsupportedFormat("gitfiles, linked worktrees and submodule worktrees are unsupported")
+        if marker.exists() and not marker.is_dir():
+            raise UnsupportedFormat("repository marker must be a supported directory")
         git_dir = marker if marker.is_dir() else root
         check_path(root, git_dir / "config")
         if not (git_dir / "config").is_file() or not (git_dir / "HEAD").exists():
+            bare_hint = (git_dir / "objects").exists() and (
+                (git_dir / "HEAD").exists() or (git_dir / "config").exists())
+            if marker.is_dir() or root.name == ".git" or bare_hint:
+                raise UnsupportedFormat("incomplete repository metadata; refusing parent discovery")
             raise RepositoryNotFound("no repository metadata at the selected path")
         for name in ("commondir", "shallow", "objects/info/alternates", "objects/info/http-alternates"):
             target = git_dir / name

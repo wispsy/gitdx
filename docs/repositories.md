@@ -17,7 +17,10 @@ not qualified yet.
 
 `open(path)` selects exactly that working root or metadata/bare directory.
 `discover(start)` explicitly searches parents and stops on unsupported metadata
-rather than silently using an outer repository. Gitfiles, linked worktrees,
+rather than silently using an outer repository.
+Incomplete `.git` directories and recognizable incomplete bare metadata are
+also discovery boundaries: an inner metadata failure cannot select an outer
+repository for a write. Gitfiles, linked worktrees,
 alternates, shallow repositories, custom worktrees and sparse checkout are
 currently refused. Object lookup is loose-only; an existing repository with
 packs may open but missing loose objects report the packed-object limitation.
