@@ -124,7 +124,8 @@ class WorkingTree:
                 if not base and child.name == ".git":continue
                 raw = (base+b"/" if base else b"") + os.fsencode(child.name);register(raw)
                 if len(nodes) >= self.limits.max_paths:raise UnsupportedFormat("working-tree path count exceeds its limit")
-                info = child.stat(follow_symlinks=False)
+                # Windows DirEntry caches omit file identifiers used below.
+                info = Path(child.path).lstat()
                 is_dir = stat.S_ISDIR(info.st_mode)
                 ignored = self.ignored(raw,is_dir)
                 nodes[raw] = (Path(child.path),info,ignored)
