@@ -32,6 +32,7 @@ are honored. Paths outside this profile remain readable as raw tree/index bytes
 but cannot be staged by this API.
 
 Default limits cover 100,000 visited paths, 64 MiB per file and 256 MiB total
-content; ignore files are bounded and at most 10,000 rules are loaded. Ordinary
+content; ignore files are bounded and at most 10,000 rules are loaded. Directory
+enumeration stops at the first excess entry before sorting. Ordinary
 concurrent file changes are detected around reads. These checks assume
 owner-controlled directories and do not establish hostile filesystem isolation.
