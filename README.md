@@ -19,6 +19,9 @@ content, explicit tracked overwrite and guarded journal recovery.
 [Protocol framing](docs/protocol.md) adds bounded packet/sideband streams,
 v0/v1 discovery and v2 command boundaries with explicit same-format negotiation.
 
+[Local fetch/clone](docs/transfers.md) uses explicit transports, private object
+quarantine, validated graph closures and expected-old tracking refs.
+
 Development starts with the [implementation plan](IMPLEMENTATION_PLAN.md) and
 [shared Project](https://github.com/orgs/wispsy/projects/30). The roadmap records
 qualification targets; remote exchange and public hosting are later milestones.
