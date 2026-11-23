@@ -1,4 +1,4 @@
-# Loose refs and HEAD
+# Files refs, packed refs and HEAD
 
 ```python
 from gitdx import Commit, Repository, Tree
@@ -32,8 +32,32 @@ Static symlink paths and existing lockfiles are refused. Owned .lock files are
 flushed and atomically replaced only after the expected value matches; failed
 writes clean only their own locks. Calls update one ref, not an atomic set.
 
-The backend refuses repositories with packed-refs, reftable, shared worktree
-metadata or changed object format. It does not implement reflog writes, deletion,
-multi-ref transactions, concurrent native pack-refs or full crash durability yet.
-Ref writes do not currently implement core.logAllRefUpdates. All operations
-assume owner-controlled directories; hosting hardening remains separately gated.
+`packed()` reads bounded sorted packed refs, including peeled IDs. Loose values
+take precedence. Mutations coordinate a per-ref lock and `packed-refs.lock`;
+deleting a direct ref requires its expected old ID and removes its packed entry
+before the loose value. The packed lock stays present across both steps so native
+pack-refs cannot republish an old loose value. HEAD deletion is refused.
+
+If removing a loose override fails after packed-file publication, the old loose
+value remains authoritative; retry the deletion after correcting the failure.
+Stale locks after a process crash require owner inspection. Readers see atomic
+file replacements, not a transactional view of multiple reference files.
+
+`update`, `delete`, `set_symbolic` and `detach_head` return `RefUpdateResult` on
+committed ref changes. To write a reflog, pass `reflog=ReflogUpdate(identity,
+message)` with explicit Git identity bytes including timestamp/timezone. Logging
+is opt-in: core.logAllRefUpdates alone does not invent identity or enable writes,
+and changing a branch does not automatically append a separate HEAD log. Deletion
+retains the explicit audit log with a zero new ID.
+
+Logs append after ref publication. A failed append returns `committed=True`, a
+`reflog_error` and, when preparation succeeded, a recovery receipt. Do not repeat
+the ref update. `repair_reflog(result)` locks the ref, checks it has not moved and
+repairs an absent/partial/already-written append idempotently. Changed history or
+a missing receipt requires manual reconciliation; unrelated log data is never
+overwritten. An interrupted response still requires a fresh ref read.
+
+Packed refs are limited to 16 MiB/100,000 entries and logs to 8 MiB. Reftable,
+shared worktrees, multi-ref transactions and full crash durability remain later
+work. All operations assume owner-controlled directories; hostile filesystem
+replacement and hosting hardening remain separately gated.

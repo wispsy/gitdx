@@ -8,6 +8,9 @@ from .repository import Repository, RepositoryNotFound
 from .names import InvalidRef
 from .refs import DirectRef, FilesRefStore, RefConflict, RefLocked, RefStore, ResolvedRef, SymbolicRef
 from .index import Index, IndexEntry, IndexExtension, IndexFile, IndexLimits, IndexLocked, IndexStat, InvalidIndex
+from .packed_refs import PackedRef, PackedRefs
+from .reflog import ReflogReceipt, ReflogUpdate
+from .refs import RefUpdateResult
 
 __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFormat",
            "ObjectId", "ObjectType", "RawObject", "Tag", "Tree", "TreeEntry",
@@ -15,6 +18,7 @@ __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFor
            "ObjectLimitExceeded", "ObjectStore", "StoreLimits", "Repository", "RepositoryNotFound", "InvalidRef",
            "DirectRef", "FilesRefStore", "RefConflict", "RefLocked", "RefStore", "ResolvedRef", "SymbolicRef"]
 __all__ += ["Index", "IndexEntry", "IndexExtension", "IndexFile", "IndexLimits", "IndexLocked", "IndexStat", "InvalidIndex"]
+__all__ += ["PackedRef", "PackedRefs", "ReflogReceipt", "ReflogUpdate", "RefUpdateResult"]
 
 
 def main() -> None:

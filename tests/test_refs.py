@@ -94,12 +94,11 @@ class RefTests(unittest.TestCase):
         with self.assertRaises(InvalidRef):
             self.refs.update("refs/heads/main", self.second, expected=None)
 
-    def test_packed_refs_and_changed_config_refuse_mutation(self):
+    def test_packed_refs_override_and_changed_config_refuse_mutation(self):
         packed = self.repo.git_dir / "packed-refs"
         packed.write_text(f"# pack-refs with: peeled\n{self.first} refs/heads/main\n")
-        with self.assertRaises(UnsupportedFormat):
-            self.refs.update("refs/heads/main", self.second, expected=self.first)
-        self.assertFalse((self.repo.git_dir / "refs/heads/main").exists())
+        self.refs.update("refs/heads/main", self.second, expected=self.first)
+        self.assertEqual(self.refs.read("refs/heads/main"), DirectRef(self.second))
         packed.unlink()
         config = self.repo.git_dir / "config"
         config.write_text("[core]\nrepositoryformatversion=1\n[extensions]\nrefstorage=reftable\n")

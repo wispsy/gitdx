@@ -1,7 +1,9 @@
 """Static path checks inside owner-controlled storage directories."""
 
 from pathlib import Path
+import os
 import stat
+import tempfile
 
 from .errors import GitdxError
 
@@ -43,3 +45,19 @@ def read_file(root: Path, path: Path, limit: int, *, limit_error: type[Exception
     if len(data) > limit:
         raise limit_error("repository metadata exceeds its configured byte limit")
     return data
+
+
+def replace_file(root: Path, path: Path, data: bytes) -> None:
+    """Publish a complete file while the caller retains its separate lock."""
+    check_path(root, path)
+    fd, name = tempfile.mkstemp(prefix="tmp_meta_", dir=path.parent)
+    temporary = Path(name)
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
+        check_path(root, path)
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
