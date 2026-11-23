@@ -35,10 +35,14 @@ class WorkingTreeTests(unittest.TestCase):
 
     def test_ignore_scopes_negation_escapes_and_tracked_files(self):
         (self.root/".gitignore").write_bytes(b"*.log\n!keep.log\nbuild/\n**/cache/\n\\#literal\nspace\\ \n")
-        for name in ("drop.log","keep.log","#literal","space "):(self.root/name).write_bytes(b"x")
-        # The portable profile refuses trailing-space filenames before staging.
-        with self.assertRaises(UnsafePath):self.repo.add(".")
-        (self.root/"space ").unlink()
+        for name in ("drop.log","keep.log","#literal"):(self.root/name).write_bytes(b"x")
+        with self.assertRaises(UnsafePath):self.repo.add("space ")
+        # Win32 normalizes trailing spaces before enumeration; POSIX can store
+        # the literal name, which the portable scanning profile also rejects.
+        if os.name!="nt":
+            (self.root/"space ").write_bytes(b"x")
+            with self.assertRaises(UnsafePath):self.repo.add(".")
+            (self.root/"space ").unlink()
         (self.root/"build").mkdir();(self.root/"build/keep").write_bytes(b"x")
         (self.root/"nested").mkdir();(self.root/"nested/.gitignore").write_bytes(b"!local.log\n")
         (self.root/"nested/local.log").write_bytes(b"x")
