@@ -13,6 +13,7 @@ from .objects import ObjectId, ObjectType, Tree
 class DiffLimits:
     max_paths: int = 100_000
     max_depth: int = 128
+    max_path_bytes: int = 4096
     max_bytes: int = 64 * 1024 * 1024
     max_lines: int = 100_000
     max_work: int = 4_000_000
@@ -180,6 +181,9 @@ def _tree(repo, root, budget):
         for entry in Tree.from_bytes(raw.data, repo.object_format).entries:
             visited += 1
             if visited > budget.limits.max_paths:raise ObjectLimitExceeded('diff path limit exceeded')
+            size = len(prefix) + len(entry.name)
+            if size > budget.limits.max_path_bytes:raise ObjectLimitExceeded('diff path byte limit exceeded')
+            budget.charge(size)
             path = prefix + entry.name
             if entry.mode == 0o40000:stack.append((path + b'/', entry.oid, depth + 1))
             else:
