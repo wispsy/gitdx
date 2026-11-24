@@ -21,9 +21,11 @@ def _component(pattern: bytes) -> bytes:
 
 def _match(pattern: tuple[bytes, ...], parts: tuple[bytes, ...]) -> bool:
     positions = {0}
-    for component in pattern:
+    for n,component in enumerate(pattern):
         if component == b"**":
-            positions = set(range(min(positions), len(parts) + 1)) if positions else set()
+            start = min(positions) if positions else 0
+            if n==len(pattern)-1 and n>0:start += 1
+            positions = set(range(start, len(parts) + 1)) if positions else set()
         else:
             positions = {i + 1 for i in positions if i < len(parts) and fnmatch.fnmatchcase(parts[i], _component(component))}
     return len(parts) in positions
@@ -48,7 +50,7 @@ class IgnoreRule:
 
 def parse_ignore(data: bytes, base: bytes = b"") -> tuple[IgnoreRule, ...]:
     rules = []
-    for line in data.split(b"\n"):
+    for line in data.removeprefix(b'\xef\xbb\xbf').split(b"\n"):
         line = line.removesuffix(b"\r")
         while line.endswith(b" "):
             n = len(line) - 2
@@ -65,6 +67,8 @@ def parse_ignore(data: bytes, base: bytes = b"") -> tuple[IgnoreRule, ...]:
         if anchored:line = line[1:]
         if not line:continue
         pattern = tuple(line.split(b"/"))
+        if any(any(marker in part for marker in (b'[:',b'[.',b'[=',b'[^')) for part in pattern):
+            raise UnsupportedFormat("unsupported ignore character-class syntax")
         for part in pattern:_component(part)
         rules.append(IgnoreRule(base, pattern, not anchored and len(pattern) == 1, directory, negate))
     return tuple(rules)

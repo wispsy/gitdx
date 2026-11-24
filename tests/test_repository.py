@@ -118,8 +118,9 @@ class RepositoryTests(unittest.TestCase):
         config = parse_config(b'[Core]\nRepositoryFormatVersion = 1 # comment\nBARE=yes\n[extensions]\nObjectFormat=sha256\n[remote "origin"]\nurl=https://example.invalid/a\n')
         self.assertTrue(config.bare)
         self.assertEqual(config.object_format, ObjectFormat.SHA256)
-        for data in (b'[core]\nbare="true"\n', b'[core]\nbare=tru\\\ne\n',
-                     b'[core]\nbare=unknown\n', b'key=value\n', b'[core "x"]\nbare=true\n'):
+        self.assertTrue(parse_config(b'[core]\nbare="true"\n').bare)
+        self.assertTrue(parse_config(b'[core]\nbare=tru\\\ne\n').bare)
+        for data in (b'[core]\nbare=unknown\n', b'key=value\n', b'[core "x"]\nbare=true\n'):
             with self.subTest(data=data), self.assertRaises(UnsupportedFormat):
                 parse_config(data)
 

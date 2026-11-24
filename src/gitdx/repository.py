@@ -94,6 +94,15 @@ class Repository:
         from .checkout_transaction import recover_checkout
         return recover_checkout(self)
 
+    def fetch(self, transport, **options):
+        from .transfers import fetch
+        return fetch(self, transport, **options)
+
+    @classmethod
+    def clone(cls, transport, path, **options):
+        from .transfers import clone
+        return clone(transport, path, **options)
+
     @classmethod
     def init(cls, path: str | os.PathLike[str], *, bare: bool = False,
              object_format: ObjectFormat = ObjectFormat.SHA1, initial_branch: str = "main") -> Repository:

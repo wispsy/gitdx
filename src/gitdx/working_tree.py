@@ -13,6 +13,7 @@ from .ignore import parse_ignore
 from .index import IndexEntry, IndexStat
 from .objects import Blob, Commit, ObjectType, Tree
 from .config import parse_config
+from .worktree_policy import excludes_file, validate_attributes, worktree_policy
 
 
 class IgnoredPath(GitdxError, ValueError):
@@ -68,10 +69,11 @@ class WorkingTree:
         raw_config = read_file(self.repo.git_dir,self.repo.git_dir/"config",1024*1024)
         current = parse_config(raw_config)
         if current.object_format != self.repo.object_format:raise UnsupportedFormat("repository object format changed")
-        config = raw_config.lower()
-        if re.search(rb"\[filter(?:\s|\])|\battributesfile\s*=",config):raise UnsupportedFormat("external filters/attribute files are unsupported")
-        match = re.findall(rb"(?m)^\s*autocrlf\s*=\s*([^#;\r\n]+)",config)
-        if any(v.strip() not in (b"false",b"no",b"off",b"0",b"") for v in match):raise UnsupportedFormat("automatic line-ending conversion is unsupported")
+        worktree_policy(current)
+        self.excludes = excludes_file(self.repo,current)
+        try:attributes = read_file(self.repo.git_dir,self.repo.git_dir/'info/attributes',1024*1024)
+        except FileNotFoundError:attributes = b''
+        validate_attributes(attributes)
         self.filemode = current.filemode
         self.symlinks = current.symlinks
 
@@ -86,7 +88,9 @@ class WorkingTree:
             path = self._file(base)/".gitignore"
             rules = parse_ignore(self._metadata(path),base)
             if not base:
-                rules = parse_ignore(read_file(self.repo.git_dir,self.repo.git_dir/"info/exclude",1024*1024) if (self.repo.git_dir/"info/exclude").exists() else b"") + rules
+                try:local = read_file(self.repo.git_dir,self.repo.git_dir/'info/exclude',1024*1024)
+                except FileNotFoundError:local = b''
+                rules = parse_ignore(self.excludes) + parse_ignore(local) + rules
             self._rule_count += len(rules)
             if self._rule_count > 10_000:raise UnsupportedFormat("ignore rule count exceeds the supported limit")
             self._rules[base] = rules
@@ -121,7 +125,7 @@ class WorkingTree:
             check_path(self.root,directory)
             if base and (directory/".git").exists():raise UnsupportedFormat("nested repositories/submodules are unsupported")
             attributes = self._metadata(directory/".gitattributes")
-            if any(line.strip() and not line.lstrip().startswith(b"#") for line in attributes.splitlines()):raise UnsupportedFormat("working-tree attribute transformations are unsupported")
+            validate_attributes(attributes)
             children = []
             with os.scandir(directory) as iterator:
                 for child in iterator:
