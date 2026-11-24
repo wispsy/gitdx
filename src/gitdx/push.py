@@ -165,7 +165,7 @@ def push(repo,transport,updates,*,atomic=False,limits=None,cancel=None):
                     if option.value.lower()!=value:raise ProtocolError('rewritten push ID is outside selected profile')
         if atomic and len({s.ok for s in report.commands})>1:raise ProtocolError('peer violated atomic report consistency')
         control.check()
-    except (OSError,GitdxError,ValueError,TypeError) as error:
+    except (OSError,GitdxError,ValueError,TypeError,KeyboardInterrupt) as error:
         raise PushUncertain(updates,atomic=atomic,peer_atomic=peer_atomic,report_version=report_version) from error
     reported={s.name:s for s in report.commands}
     return PushResult(tuple(PushOutcome(u.name,u.expected_old,u.new,PushState.ACCEPTED if reported[u.name.encode()].ok else PushState.REJECTED,

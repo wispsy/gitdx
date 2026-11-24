@@ -10,6 +10,14 @@ from .errors import GitdxError
 from .object_store import ObjectLimitExceeded, StoreLimits
 from .objects import ObjectFormat, ObjectId, ObjectType, RawObject, parse_object
 from .repository import Repository, RepositoryNotFound
+from .push import PushUncertain, PushUpdate
+
+
+def _push_json(result):
+    return {'complete':result.complete,'atomic':result.atomic,'atomic_requested':result.atomic_requested,
+            'peer_atomic':result.peer_atomic,'report_version':result.report_version,
+            'outcomes':[{'name':o.name,'old':str(o.old) if o.old else None,'new':str(o.new) if o.new else None,
+                         'state':o.state.value,'reason':o.reason} for o in result.outcomes]}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -68,7 +76,13 @@ def main(argv: list[str] | None = None) -> int:
     fetch.add_argument('source');fetch.add_argument('--remote',default='origin')
     fetch.add_argument('--branch',action='append');fetch.add_argument('--tags',action='store_true')
     fetch.add_argument('--allow-rewind',action='store_true')
-    for command in (clone,fetch):
+    push = commands.add_parser('push',help='push an explicit expected-old branch/tag proposal')
+    push.add_argument('source',help='explicit destination path or URL')
+    push.add_argument('--ref',required=True);push.add_argument('--expected-old',required=True,help='full ID or absent')
+    proposed=push.add_mutually_exclusive_group(required=True)
+    proposed.add_argument('--new',help='full source object ID');proposed.add_argument('--delete',action='store_true')
+    push.add_argument('--force',action='store_true');push.add_argument('--atomic',action='store_true')
+    for command in (clone,fetch,push):
         command.add_argument('--transport',choices=('local','http'),required=True)
         command.add_argument('--allow-http',action='store_true',help='explicitly permit cleartext HTTP')
         command.add_argument('--protocol-version',type=int,choices=(0,1,2),default=2)
@@ -90,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             repo = Repository.init(base / args.path, bare=args.bare, object_format=args.object_format,
                                    initial_branch=args.initial_branch)
             print(f"Initialized {'bare ' if repo.bare else ''}repository in {repo.git_dir}")
-        elif args.command in ('clone','fetch'):
+        elif args.command in ('clone','fetch','push'):
             from .http_transport import HTTPAuthorization, SmartHTTPTransport
             from .transfers import LocalTransport, TransferLimits
             limits=TransferLimits(max_seconds=args.timeout)
@@ -108,12 +122,19 @@ def main(argv: list[str] | None = None) -> int:
                 repo=Repository.clone(transport,base/args.path,bare=args.bare,branch=args.branch,checkout=not args.no_checkout,
                                       object_format=args.object_format,limits=limits)
                 print(json.dumps({'path':str(repo.git_dir),'object_format':repo.object_format.value,'head':str(repo.refs.resolve().oid) if repo.refs.resolve().oid else None}))
-            else:
+            elif args.command=='fetch':
                 result=Repository.discover(base).fetch(transport,remote=args.remote,branches=args.branch,tags=args.tags,
                                                       allow_rewind=args.allow_rewind,limits=limits)
                 print(json.dumps({'complete':result.complete,'received_objects':result.received_objects,
                                   'updated':[r.name for r in result.updated],
                                   'rejected':[{'name':r.name,'reason':r.reason} for r in result.rejected]}))
+                if not result.complete:return 2
+            else:
+                repo=Repository.discover(base)
+                expected=None if args.expected_old=='absent' else ObjectId(args.expected_old,repo.object_format)
+                proposed=None if args.delete else ObjectId(args.new,repo.object_format)
+                result=repo.push(transport,(PushUpdate(args.ref,proposed,expected_old=expected,force=args.force),),atomic=args.atomic,limits=limits)
+                print(json.dumps(_push_json(result)))
                 if not result.complete:return 2
         elif args.command == "hash-object":
             repo = None
@@ -181,6 +202,10 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 sys.stdout.buffer.write(raw.data)
         return 0
+    except PushUncertain as error:
+        print(json.dumps(_push_json(error.result)))
+        print(f'gitdx: {error}',file=sys.stderr)
+        return 3
     except (GitdxError, OSError, ValueError) as error:
         print(f"gitdx: {error}", file=sys.stderr)
         return 1
