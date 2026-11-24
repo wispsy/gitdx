@@ -1,5 +1,8 @@
 # gitdx
 
+Initial PyPI preview: **0.1.0a1**. Released behavior and current development are
+tracked in [Wispsy Releases](https://github.com/orgs/wispsy/projects/31).
+
 A standalone, standard-library Python Git engine with Git-compatible storage and protocols.
 
 Python 3.14+ · MIT
