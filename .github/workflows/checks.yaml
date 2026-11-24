@@ -31,10 +31,21 @@ jobs:
       - run: uv run --frozen python -W error::ResourceWarning -m unittest discover -s tests -v
         env:
           GITDX_REQUIRE_GIT: '1'
+      - run: uv run --frozen python scripts/qualify_repository.py --source-revision "${{ github.sha }}" --output "${{ runner.temp }}/qualification/source.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: qualification-source-${{ matrix.os }}
+          path: ${{ runner.temp }}/qualification/*.json
+          if-no-files-found: error
+          retention-days: 14
   distribution:
-    name: Installed wheel and sdist
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    name: Installed wheel and sdist (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -44,6 +55,12 @@ jobs:
           version: '0.13.9'
           python-version: '3.14'
       - run: uv sync --locked
-      - run: uv run --frozen python scripts/check_distribution.py
+      - run: uv run --frozen python scripts/check_distribution.py --qualification-only --source-revision "${{ github.sha }}" --output-dir "${{ runner.temp }}/qualification"
         env:
           GITDX_REQUIRE_GIT: '1'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: qualification-installed-${{ matrix.os }}
+          path: ${{ runner.temp }}/qualification/*.json
+          if-no-files-found: error
+          retention-days: 14

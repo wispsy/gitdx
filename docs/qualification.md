@@ -28,3 +28,33 @@ partial-clone filters and pack `.promisor` markers are refused without lazy fetc
 open/index/ref/worktree checks repeat this policy. Filesystem checks assume the
 documented owner-controlled profile. The registry does not imply production Git
 serving, atomic multi-ref updates or cross-format conversion.
+
+## Native and installed matrix
+
+`scripts/qualify_repository.py` requires Git and uv; a missing oracle cannot turn
+the profile into a skipped success. In each hash format it creates native Git
+history, annotated tags, index and packed refs, runs native gc, then executes
+Gitdx packed-object/delta/ref/index/status/commit/checkout operations in a child
+with Git absent from PATH. Separate native REF/OFS fixtures must contain actual
+deltas. Native Git then verifies the new commit, worktree status and full object
+graph. Unknown extensions/formats, reftable, alternates, shallow, configured and
+marker-only promisor profiles, and a real native partial clone must refuse
+without changing file bytes or modes.
+
+CI runs source tests plus this qualification on Linux/macOS/Windows. Wheel and
+sdist are built, installed into separate environments outside the checkout, and
+run the same mandatory qualification on all three platforms. Installation paths
+and artifact hashes are checked. Focused installed push fixtures run when that
+profile is present; unchanged source behavior is covered by source CI and the
+native post-gc worker. The default distribution command retains full installed
+test runs; CI selects `--qualification-only` for its dedicated artifact matrix.
+
+```
+uv run python scripts/qualify_repository.py --output /selected/source.json
+uv run python scripts/check_distribution.py --qualification-only --output-dir /selected/installed
+```
+
+Each source/wheel/sdist record names exactly the fixture-qualified scopes; other
+implemented features remain `supported`. Reports are uploaded as CI artifacts
+for 14 days, with the source revision and exact toolchains. This publishes test
+evidence only. It does not publish packages or authorize a release.

@@ -30,6 +30,7 @@ _PROFILES=(
     ('worktree.checkout-recovery', 'supported', 'Guarded process-interruption recovery', ('checkout-fault',)),
     ('history.commit', 'supported', 'Explicit identities and expected-HEAD commits', ('write-after-gc',)),
     ('transfer.fetch-local-http', 'supported', 'Complete same-format local and smart-HTTP fetch/clone', ('fetch-interop',)),
+    ('protocol.push-records', 'supported', 'Bounded receive-pack commands and report-status v1/v2 records', ('push-codec',)),
     ('config.local', 'supported', 'Local ordered configuration and conservative worktree policy', ('native-status','refusal-profiles')),
     ('config.includes-inspection', 'experimental', 'Explicit confined read-only includes; repository mutations refuse includes', ()),
     ('repository.alternates', 'unsupported', 'Alternates are refused before repository operations', ('refusal-profiles',)),
@@ -40,7 +41,8 @@ _PROFILES=(
     ('repository.linked-worktrees', 'unsupported', 'Gitfiles/commondir and linked worktrees are refused', ()),
     ('attributes.conversion', 'unsupported', 'External filters, text conversion and encoding drivers never execute', ()),
     ('refs.atomic-multi-update', 'unsupported', 'Single-ref transactions do not promise atomic multi-ref visibility', ()),
-    ('transfer.push', 'unsupported', 'Push is not selected in this profile yet', ()),
+    ('transfer.push-local', 'supported', 'Explicit branch/tag pushes to bare local destinations with individual CAS outcomes', ('push-local',)),
+    ('transfer.push-http', 'supported', 'Same-format smart-HTTP push with explicit auth and per-ref reports', ('push-http',)),
     ('server.git-routes', 'unsupported', 'Production upload/receive handlers are separately scoped', ()),
     ('objects.cross-format', 'unsupported', 'Object-format advertisement never negotiates conversion', ()),
 )
