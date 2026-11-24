@@ -79,6 +79,14 @@ class Repository:
         from .revisions import resolve_revision
         return resolve_revision(self, revision, limits=limits)
 
+    def is_ancestor(self, ancestor, descendant, *, limits=None):
+        from .ancestry import is_ancestor
+        return is_ancestor(self, ancestor, descendant, limits=limits)
+
+    def merge_bases(self, left, right, *, limits=None):
+        from .ancestry import merge_bases
+        return merge_bases(self, left, right, limits=limits)
+
     def branches(self, *, limits=None):
         from .history import list_refs
         return list_refs(self, "refs/heads/", limits=limits)

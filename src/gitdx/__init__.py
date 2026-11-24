@@ -18,6 +18,7 @@ from .delta import apply_delta
 from .history import HistoryEntry, HistoryLimits
 from .diff import BlobDiff, DiffHunk, DiffLimits, DiffLine, FileDiff, diff_bytes, diff_trees, quote_path, render_patch
 from .revisions import AmbiguousRevision, RevisionLimits, RevisionNotFound, UnsupportedRevision, resolve_revision
+from .ancestry import is_ancestor, merge_bases
 from .pack_writer import PackBundle, PackWriteLimits, reachable_objects, write_pack
 from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, CheckoutPlan, CheckoutRecoveryRequired
 from .checkout_transaction import CheckoutResult
@@ -49,6 +50,7 @@ __all__ += ["apply_delta"]
 __all__ += ["HistoryEntry", "HistoryLimits"]
 __all__ += ["BlobDiff", "DiffHunk", "DiffLimits", "DiffLine", "FileDiff", "diff_bytes", "diff_trees", "quote_path", "render_patch"]
 __all__ += ["AmbiguousRevision", "RevisionLimits", "RevisionNotFound", "UnsupportedRevision", "resolve_revision"]
+__all__ += ["is_ancestor", "merge_bases"]
 __all__ += ["PackBundle", "PackWriteLimits", "reachable_objects", "write_pack"]
 __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPlan", "CheckoutRecoveryRequired"]
 __all__ += ["CheckoutResult"]

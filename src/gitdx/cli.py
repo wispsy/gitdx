@@ -66,6 +66,10 @@ def main(argv: list[str] | None = None) -> int:
     diff.add_argument('--patch', action='store_true', help='print an escaped ASCII patch presentation')
     revision = commands.add_parser('rev-parse', help='resolve the documented single-object revision subset')
     revision.add_argument('revision')
+    ancestor = commands.add_parser('is-ancestor', help='return status 0 for ancestry, 1 for false, 2 for errors')
+    ancestor.add_argument('ancestor');ancestor.add_argument('descendant')
+    bases = commands.add_parser('merge-base', help='print all best common ancestors of exactly two commit-ish roots')
+    bases.add_argument('left');bases.add_argument('right')
     checkout = commands.add_parser("checkout",help="apply a safe checkout or print its reviewed changes")
     checkout.add_argument("destination")
     checkout.add_argument("--detach",action="store_true",help="destination is a full commit ID")
@@ -107,6 +111,12 @@ def main(argv: list[str] | None = None) -> int:
                 with (base/args.evidence).open('rb') as stream:data=stream.read(1024*1024+1)
                 evidence=QualificationEvidence.from_json(data)
             print(json.dumps(capability_report(evidence),sort_keys=True))
+        elif args.command in ('is-ancestor', 'merge-base'):
+            repo = Repository.discover(base)
+            if args.command == 'is-ancestor':return 0 if repo.is_ancestor(args.ancestor,args.descendant) else 1
+            selected = repo.merge_bases(args.left,args.right)
+            for oid in selected:print(oid)
+            return 0 if selected else 1
         elif args.command == 'rev-parse':
             print(Repository.discover(base).resolve(args.revision))
         elif args.command == 'diff':
@@ -234,4 +244,4 @@ def main(argv: list[str] | None = None) -> int:
         return 3
     except (GitdxError, OSError, ValueError) as error:
         print(f"gitdx: {error}", file=sys.stderr)
-        return 1
+        return 2 if args.command in ('is-ancestor','merge-base') else 1
