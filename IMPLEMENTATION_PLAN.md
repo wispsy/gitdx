@@ -179,6 +179,14 @@ assessments are historical. No ecosystem dependency is added speculatively.
 
 ## Verification and evidence
 
+The [native compatibility matrix](docs/qualification.md) binds each selected
+source/wheel/sdist result to its exact implementation, runtime, Git/uv versions,
+source revision and artifact identity. It exercises both native hash formats,
+local and smart-HTTP client/storage exchange, explicit-tree diffs, revision
+resolution and all two-root merge bases. Separate no-Git workers and mandatory
+refusal/corruption/resource fixtures keep evidence scopes explicit. Native CGI
+test peers do not establish production server support or cross-format exchange.
+
 Each implementation includes focused unittest cases for its changed behavior,
 then the relevant local suite. CI runs Python 3.14 on Linux, macOS and Windows,
 plus installed artifact checks. Use fresh CI for unchanged work; rerun affected

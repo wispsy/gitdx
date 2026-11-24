@@ -71,6 +71,22 @@ class Repository:
         from .history import walk_history
         return walk_history(self, starts, limits=limits)
 
+    def diff(self, old_tree, new_tree, **options):
+        from .diff import diff_trees
+        return diff_trees(self, old_tree, new_tree, **options)
+
+    def resolve(self, revision, *, limits=None):
+        from .revisions import resolve_revision
+        return resolve_revision(self, revision, limits=limits)
+
+    def is_ancestor(self, ancestor, descendant, *, limits=None):
+        from .ancestry import is_ancestor
+        return is_ancestor(self, ancestor, descendant, limits=limits)
+
+    def merge_bases(self, left, right, *, limits=None):
+        from .ancestry import merge_bases
+        return merge_bases(self, left, right, limits=limits)
+
     def branches(self, *, limits=None):
         from .history import list_refs
         return list_refs(self, "refs/heads/", limits=limits)

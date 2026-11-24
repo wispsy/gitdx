@@ -15,7 +15,7 @@ def run(*args, cwd=None, env=None):
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--qualification-only',action='store_true',help='run installed native repository and focused push qualification')
+    parser.add_argument('--qualification-only',action='store_true',help='run installed native compatibility and focused history/diff/push regressions')
     parser.add_argument('--output-dir',help='destination for versioned qualification records')
     parser.add_argument('--source-revision')
     args=parser.parse_args()
@@ -52,11 +52,12 @@ def main():
                 raise RuntimeError('installed capability report selected a different profile')
             print(profile+': native repository qualification and no-Git evidence selection passed',flush=True)
             if args.qualification_only:
-                # New push fixtures run against each installed artifact. Existing
-                # behavior is covered by the native post-gc worker and source CI.
-                if list((root/'tests').glob('test_push*.py')):
+                # Runtime evidence covers the native local/remote matrix. Focused
+                # regressions also run against the independently installed APIs.
+                for pattern in ('test_diff.py','test_revisions.py','test_ancestry.py','test_push*.py'):
+                    if not list((root/'tests').glob(pattern)):raise RuntimeError('missing installed qualification fixtures: '+pattern)
                     run(str(python),'-I','-W','error::ResourceWarning','-m','unittest','discover',
-                        '-s',str(root/'tests'),'-p','test_push*.py','-v',cwd=workspace,
+                        '-s',str(root/'tests'),'-p',pattern,'-v',cwd=workspace,
                         env=dict(os.environ,GITDX_REQUIRE_GIT='1'))
             else:
                 run(str(python), "-I", "-W", "error::ResourceWarning", "-m", "unittest", "discover",
