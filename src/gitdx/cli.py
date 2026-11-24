@@ -64,6 +64,8 @@ def main(argv: list[str] | None = None) -> int:
     diff.add_argument('--context', type=int, default=3)
     diff.add_argument('--renames', type=int, metavar='PERCENT', help='enable bounded rename matching, threshold 1..100')
     diff.add_argument('--patch', action='store_true', help='print an escaped ASCII patch presentation')
+    revision = commands.add_parser('rev-parse', help='resolve the documented single-object revision subset')
+    revision.add_argument('revision')
     checkout = commands.add_parser("checkout",help="apply a safe checkout or print its reviewed changes")
     checkout.add_argument("destination")
     checkout.add_argument("--detach",action="store_true",help="destination is a full commit ID")
@@ -105,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
                 with (base/args.evidence).open('rb') as stream:data=stream.read(1024*1024+1)
                 evidence=QualificationEvidence.from_json(data)
             print(json.dumps(capability_report(evidence),sort_keys=True))
+        elif args.command == 'rev-parse':
+            print(Repository.discover(base).resolve(args.revision))
         elif args.command == 'diff':
             from .diff import render_patch
             repo = Repository.discover(base)
