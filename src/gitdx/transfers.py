@@ -82,6 +82,14 @@ class LocalTransport:
     def _repo(self):
         return Repository.open(self.source.git_dir if isinstance(self.source,Repository) else self.source)
 
+    def discover_push(self,control):
+        from .push import discover_local
+        return discover_local(self,control)
+
+    def send_pack(self,advertisement,request,control):
+        from .push import receive_local
+        return receive_local(self,advertisement,request,control)
+
     def discover(self,control):
         control.check();repo=self._repo();head=repo.refs.read('HEAD');resolved=repo.refs.resolve()
         entries=tuple(item for prefix in ('refs/heads/','refs/tags/') for item in list_refs(

@@ -4,6 +4,14 @@ A standalone, standard-library Python Git engine with Git-compatible storage and
 
 Python 3.14+ · MIT
 
+[Capability reports](docs/qualification.md) distinguish implementation support
+from explicitly selected, runtime-bound qualification evidence.
+
+[Push proposals](docs/push.md) select expected-old branch/tag updates and expose
+per-ref outcomes through explicit local or smart-HTTP destinations. Atomic
+requests require peer advertisement and consistent reports; local refs remain
+independent transactions.
+
 [Configuration policy](docs/configuration.md) provides ordered Git values,
 quoting/continuations and explicitly confined include inspection.
 
@@ -25,7 +33,7 @@ refs. HTTPS verifies certificates; authorization is explicitly selected.
 
 Development starts with the [implementation plan](IMPLEMENTATION_PLAN.md) and
 [shared Project](https://github.com/orgs/wispsy/projects/30). The roadmap records
-qualification targets; push, server handlers and public hosting remain later milestones.
+qualification targets; server handlers and public hosting remain later milestones.
 
 Source development does not imply a published package or deployed service.
 
