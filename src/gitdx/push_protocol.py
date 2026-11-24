@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, replace
 from itertools import islice
 
 from .objects import ObjectFormat, ObjectId
-from .pktline import FLUSH, Packet, PacketDecoder, PacketKind, ProtocolError, ProtocolLimitExceeded, ProtocolLimits, encode_packet
+from .pktline import FLUSH, Packet, PacketDecoder, PacketKind, ProtocolError, ProtocolLimitExceeded, ProtocolLimits
 from .protocol import (Negotiated, _caps, _format, _message, _name, _oid, _text, _wire, negotiate, ObjectFormatMismatch)
 
 _PUSH_CAPS=frozenset((b'report-status',b'report-status-v2',b'ofs-delta',b'side-band-64k',b'atomic',b'object-format',b'delete-refs'))

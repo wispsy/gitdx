@@ -125,8 +125,9 @@ class SmartHTTPTransport:
             control.check();result.extend(decoder.feed(data[start:start+65536]))
         decoder.finish();control.check();return tuple(result)
 
-    def _request(self,method,suffix,body,content_type,control,*,protocol_version=None):
+    def _request(self,method,suffix,body,content_type,control,*,protocol_version=None,service='git-upload-pack'):
         control.check()
+        if service not in ('git-upload-pack','git-receive-pack'):raise ValueError('select a supported smart Git service')
         connection=http.client.HTTPConnection(self.host,self.port,timeout=min(self.idle_timeout,max(.001,control.deadline-time.monotonic())))
         with _SocketScope(control) as scope:
             def connect():
@@ -147,7 +148,7 @@ class SmartHTTPTransport:
             version=self.protocol_version if protocol_version is None else protocol_version
             if version:headers['Git-Protocol']='version='+str(version)
             if self.authorization is not None:headers['Authorization']=self.authorization.value
-            if body is not None:headers['Content-Type']='application/x-git-upload-pack-request'
+            if body is not None:headers['Content-Type']='application/x-'+service+'-request'
             response=None
             try:
                 if body is not None:control.consume(len(body))
@@ -201,7 +202,7 @@ class SmartHTTPTransport:
             ad=replace(ad,refs=refs)
         return ad
 
-    def _sidebands(self,packets,control):
+    def _sideband_data(self,packets,control,maximum):
         if packets and packets[-1]==RESPONSE_END:packets=packets[:-1]
         if not packets or packets[-1]!=FLUSH:raise ProtocolError('missing pack stream terminator')
         data=bytearray()
@@ -209,9 +210,33 @@ class SmartHTTPTransport:
             control.check();side=decode_sideband(packet,limits=self._limits(control));side.raise_if_error()
             if side.channel==1:
                 data.extend(side.data)
-                if len(data)>control.limits.pack.max_pack_bytes:raise TransferError('HTTP pack byte limit exceeded')
-        if not data.startswith(b'PACK'):raise ProtocolError('missing HTTP pack data')
+                if len(data)>maximum:raise TransferError('HTTP sideband byte limit exceeded')
         return bytes(data)
+
+    def _sidebands(self,packets,control):
+        data=self._sideband_data(packets,control,control.limits.pack.max_pack_bytes)
+        if not data.startswith(b'PACK'):raise ProtocolError('missing HTTP pack data')
+        return data
+
+    def discover_push(self,control):
+        version=self.protocol_version if self.protocol_version in (0,1) else 0
+        data=self._request('GET','/info/refs?service=git-receive-pack',None,
+                           'application/x-git-receive-pack-advertisement',control,protocol_version=version,service='git-receive-pack')
+        packets=self._packets(data,control)
+        if len(packets)<2 or packets[0].kind is not PacketKind.DATA or packets[0].data.removesuffix(b'\n')!=b'# service=git-receive-pack' or packets[1]!=FLUSH:
+            raise ProtocolError('invalid receive-pack HTTP service announcement')
+        ad=parse_advertisement(packets[2:],limits=self._limits(control))
+        if ad.version not in (0,1) or ad.shallow:raise UnsupportedFormat('unsupported HTTP push discovery profile')
+        return ad
+
+    def send_pack(self,advertisement,request,control):
+        from .push_protocol import parse_push_request
+        parsed=parse_push_request(request,advertisement,advertisement.format,limits=self._limits(control))
+        body=self._request('POST','/git-receive-pack',request,'application/x-git-receive-pack-result',control,
+                           protocol_version=advertisement.version,service='git-receive-pack')
+        if any(c.name==b'side-band-64k' for c in parsed.negotiated.capabilities):
+            return self._sideband_data(self._packets(body,control),control,control.limits.max_wire_bytes)
+        return body
 
     def fetch_pack(self,ad,wants,control):
         if ad.shallow:raise UnsupportedFormat('shallow HTTP fetch is unsupported')

@@ -99,6 +99,10 @@ class Repository:
         from .transfers import fetch
         return fetch(self, transport, **options)
 
+    def push(self, transport, updates, **options):
+        from .push import push
+        return push(self, transport, updates, **options)
+
     @classmethod
     def clone(cls, transport, path, **options):
         from .transfers import clone
