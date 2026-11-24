@@ -39,6 +39,20 @@ class CapabilityTests(unittest.TestCase):
         with self.assertRaises(ValueError):QualificationEvidence.from_json(json.dumps(data))
         with self.assertRaises(ValueError):QualificationEvidence.from_json('{"profile":"source","profile":"wheel"}')
 
+    def test_compatibility_scopes_require_their_own_checks_and_refusals_stay_unsupported(self):
+        checks=('diff-native','revision-native','ancestry-native','fetch-interop','push-codec','push-local','push-http',
+                'replacement-refusal','refusal-index-required')
+        scopes=('diff.trees-bytes','history.revisions','history.ancestry','transfer.fetch-local-http',
+                'protocol.push-records','transfer.push-local','transfer.push-http')
+        for scope in scopes:
+            with self.subTest(scope=scope),self.assertRaises(ValueError):replace(evidence(),capabilities=(scope,))
+        selected=replace(evidence(),checks=checks,capabilities=scopes)
+        states={r['id']:r['state'] for r in capability_report(selected)['capabilities']}
+        for scope in scopes:self.assertEqual(states[scope],'tested')
+        self.assertEqual(states['objects.native'],'supported')
+        self.assertEqual(states['history.replacements'],'unsupported')
+        self.assertEqual(states['worktree.index-required'],'unsupported')
+
     def test_promisor_and_other_required_metadata_refuse_without_mutation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);repo=Repository.init(root);tip=commit_tree(repo,{b'file':b'data'})
