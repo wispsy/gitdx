@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Protocol
 
 from .config import parse_config
+from .repository_profile import check_repository_features
 from .errors import GitdxError, InvalidObject, UnsupportedFormat
 from .filesystem import check_path, read_file, replace_file
 from .names import InvalidRef, validate_refname
@@ -91,13 +92,9 @@ class FilesRefStore:
 
     def _profile(self) -> None:
         config = parse_config(read_file(self.path, self.path / "config", 1024 * 1024))
+        check_repository_features(self.path,config)
         if config.object_format != self.objects.format:
             raise UnsupportedFormat("object format changed since the repository was opened")
-        for name in ("commondir",):
-            target = self.path / name
-            check_path(self.path, target)
-            if target.exists():
-                raise UnsupportedFormat(f"{name} is not supported by the files-ref backend")
 
     def packed(self) -> PackedRefs:
         self._profile()

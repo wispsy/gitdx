@@ -58,6 +58,8 @@ def main(argv: list[str] | None = None) -> int:
     checkout.add_argument("--overwrite-tracked",action="store_true",help="discard tracked changes; untracked content stays protected")
     checkout.add_argument("--dry-run",action="store_true",help="print the immutable plan without mutation")
     commands.add_parser("recover-checkout",help="roll back an interrupted checkout or finalize a committed journal")
+    capabilities = commands.add_parser('capabilities',help='print supported and explicitly qualified capability profiles')
+    capabilities.add_argument('--evidence',help='selected qualification JSON for this exact installed runtime')
     clone = commands.add_parser('clone',help='clone through an explicitly selected transport into a new path')
     clone.add_argument('source');clone.add_argument('path');clone.add_argument('--bare',action='store_true')
     clone.add_argument('--branch');clone.add_argument('--no-checkout',action='store_true')
@@ -77,7 +79,14 @@ def main(argv: list[str] | None = None) -> int:
         base = Path(args.directory).absolute()
         if not base.is_dir():
             raise NotADirectoryError("-C must name an existing directory")
-        if args.command == "init":
+        if args.command=='capabilities':
+            from .capabilities import QualificationEvidence, capability_report
+            evidence=None
+            if args.evidence:
+                with (base/args.evidence).open('rb') as stream:data=stream.read(1024*1024+1)
+                evidence=QualificationEvidence.from_json(data)
+            print(json.dumps(capability_report(evidence),sort_keys=True))
+        elif args.command == "init":
             repo = Repository.init(base / args.path, bare=args.bare, object_format=args.object_format,
                                    initial_branch=args.initial_branch)
             print(f"Initialized {'bare ' if repo.bare else ''}repository in {repo.git_dir}")

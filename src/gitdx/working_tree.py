@@ -13,6 +13,7 @@ from .ignore import parse_ignore
 from .index import IndexEntry, IndexStat
 from .objects import Blob, Commit, ObjectType, Tree
 from .config import parse_config
+from .repository_profile import check_repository_features
 from .worktree_policy import excludes_file, validate_attributes, worktree_policy
 
 
@@ -68,6 +69,7 @@ class WorkingTree:
     def _policy(self):
         raw_config = read_file(self.repo.git_dir,self.repo.git_dir/"config",1024*1024)
         current = parse_config(raw_config)
+        check_repository_features(self.repo.git_dir,current)
         if current.object_format != self.repo.object_format:raise UnsupportedFormat("repository object format changed")
         worktree_policy(current)
         self.excludes = excludes_file(self.repo,current)

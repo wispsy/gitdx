@@ -4,6 +4,9 @@ A standalone, standard-library Python Git engine with Git-compatible storage and
 
 Python 3.14+ · MIT
 
+[Capability reports](docs/qualification.md) distinguish implementation support
+from explicitly selected, runtime-bound qualification evidence.
+
 [Configuration policy](docs/configuration.md) provides ordered Git values,
 quoting/continuations and explicitly confined include inspection.
 

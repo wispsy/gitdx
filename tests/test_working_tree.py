@@ -66,9 +66,12 @@ class WorkingTreeTests(unittest.TestCase):
 
     def test_directory_enumeration_stops_at_limit_and_preserves_index(self):
         (self.root/"file").write_bytes(b"keep");self.repo.add("file")
-        before=self.repo.index.path.read_bytes();visited=[]
+        before=self.repo.index.path.read_bytes();visited=[];scan=os.scandir
         @contextmanager
         def large_directory(path):
+            if Path(path)!=self.root:
+                with scan(path) as entries:yield entries
+                return
             def entries():
                 yield SimpleNamespace(name=".git")
                 for i in range(1000):

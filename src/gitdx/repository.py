@@ -14,6 +14,7 @@ from .pack import PackLimits, RepositoryObjectStore
 from .objects import ObjectFormat, ObjectId
 from .refs import FilesRefStore
 from .index import IndexFile
+from .repository_profile import check_repository_features
 
 
 class RepositoryNotFound(GitdxError, LookupError):
@@ -169,14 +170,10 @@ class Repository:
             if marker.is_dir() or root.name == ".git" or bare_hint:
                 raise UnsupportedFormat("incomplete repository metadata; refusing parent discovery")
             raise RepositoryNotFound("no repository metadata at the selected path")
-        for name in ("commondir", "shallow", "objects/info/alternates", "objects/info/http-alternates"):
-            target = git_dir / name
-            check_path(git_dir, target)
-            if target.exists():
-                raise UnsupportedFormat(f"repository feature {name} is not supported yet")
         check_path(git_dir, git_dir / "HEAD")
         head = read_file(git_dir, git_dir / "HEAD", 4096).removesuffix(b"\n")
         config = parse_config(read_file(git_dir, git_dir / "config", 1024 * 1024))
+        check_repository_features(git_dir,config)
         if head.startswith(b"ref: "):
             try:
                 validate_refname(head[5:].decode("utf-8"))
