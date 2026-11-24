@@ -23,10 +23,13 @@ line overlap. Candidates sort by decreasing score, source path, destination
 path; each source/destination is selected once. This is a documented heuristic,
 not a promise to reproduce Git's similarity scores, copy detection or rewrites.
 
-`DiffLimits` bounds paths/depth, aggregate tree/blob bytes, lines per blob,
+`DiffLimits` bounds paths/depth, bytes per expanded path (4096 by default),
+aggregate tree/blob/expanded-path bytes, lines per blob,
 aggregate line-comparison work, rename candidate pairs, hunks and patch bytes.
 Exhaustion raises `ObjectLimitExceeded`; detection never silently turns off.
 The line comparison cost is charged conservatively before running alignment.
+Path length and aggregate bytes are checked before joining/retaining path bytes;
+reused subtrees cannot amplify long directory prefixes without consuming budget.
 Large comparisons may require caller-selected larger budgets.
 
 `FileDiff.patch()` returns raw Git-style patch bytes with full OIDs, C-quoted

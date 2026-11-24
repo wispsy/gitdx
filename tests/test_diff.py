@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from gitdx import (Blob, Commit, DiffLimits, InvalidObject, MissingObject, ObjectFormat, ObjectId,
                    ObjectLimitExceeded, Repository, Tree, TreeEntry, diff_bytes, quote_path, render_patch)
@@ -94,6 +95,25 @@ class DiffTests(unittest.TestCase):
         self.assertEqual(data['hunks'][0]['lines'][0]['hex'],b'\x1b[0m\n'.hex())
         shown = subprocess.run(command+['--patch'],env=env,capture_output=True,check=True).stdout
         self.assertNotIn(b'\x1b',shown);self.assertIn(b'\\x1b[0m',shown)
+
+    def test_expanded_paths_are_bounded_before_blob_reads_and_charge_aggregate_bytes(self):
+        child = tree(self.repo,{b'file':(0o100644,b'')})
+        nested = self.repo.objects.write(Tree((TreeEntry(0o40000,b'directory',child),)).to_raw())
+        original = self.repo.objects.read
+        blob = Blob(b'').to_raw().oid()
+        def guarded(store,oid):
+            if oid==blob:raise AssertionError('oversized path reached blob loading')
+            return original(oid)
+        with patch.object(type(self.repo.objects),'read',guarded):
+            with self.assertRaises(ObjectLimitExceeded):self.repo.diff(None,nested,limits=DiffLimits(max_path_bytes=12))
+        leaves = tree(self.repo,{str(n).encode():(0o100644,b'') for n in range(20)})
+        amplified = self.repo.objects.write(Tree((TreeEntry(0o40000,b'a'*128,leaves),TreeEntry(0o40000,b'b'*128,leaves))).to_raw())
+        # Encoded objects fit; repeated expanded prefixes must also be charged.
+        self.assertLess(len(self.repo.objects.read(amplified).data)+2*len(self.repo.objects.read(leaves).data),4096)
+        before = {p.relative_to(self.root):p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        with self.assertRaises(ObjectLimitExceeded):self.repo.diff(None,amplified,limits=DiffLimits(max_bytes=4096))
+        self.assertEqual(len(self.repo.diff(None,amplified)),40)
+        self.assertEqual(before,{p.relative_to(self.root):p.read_bytes() for p in self.root.rglob('*') if p.is_file()})
 
 
 class DiffGitTests(unittest.TestCase):

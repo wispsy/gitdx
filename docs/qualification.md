@@ -41,13 +41,43 @@ graph. Unknown extensions/formats, reftable, alternates, shallow, configured and
 marker-only promisor profiles, and a real native partial clone must refuse
 without changing file bytes or modes.
 
+The same worker compares raw tree diffs, typed revisions and all criss-cross
+merge bases with exact native Git answers. It clones/fetches with local and
+smart-HTTP transports, pushes expected-old branch/tag updates, and exercises
+both report versions and explicitly advertised atomic HTTP updates. HTTP
+discovery/fetch runs separately for protocol 0, 1 and 2. The runtime worker has
+an empty PATH, disabled ambient proxies and a failing subprocess entry point;
+only the separate development CGI peer executes native Git.
+
+Native clients then clone and push over local and HTTP transports to
+Gitdx-created storage. A second no-Git worker reads those native-written objects
+after gc. Native `index-pack --strict` verifies a Gitdx-produced pack. These are
+client/storage interoperability claims: the CGI peer uses stock Git, and this
+does not qualify production Gitdx server routes.
+
+Corrupt incoming packs and exhausted wire budgets must preserve destination
+refs/files. Native v3/v4, split and sparse indexes, synthetic unknown required
+index extensions and a corrupt index checksum must refuse without file/mode
+changes. Graft and packed replacement history are refused by revision queries.
+An empty/default capability report never acquires these test claims implicitly.
+
+| Profile | Supported scope exercised | Explicitly refused/separate scope |
+| --- | --- | --- |
+| Repository/storage | Same-format SHA-1 and SHA-256, files/packed refs, index v2, native gc, indexed REF/OFS deltas, native-written and Gitdx-written objects | Alternates, shallow/promisor/filter metadata, linked worktrees/commondir, unknown required formats, reftable |
+| Local APIs | Stage/status/commit/checkout, explicit-tree byte diffs, typed revision subset, all two-root merge bases | Non-v2/split/sparse/unknown required indexes, graft/replacement history; broader revision syntax remains unsupported |
+| Fetch/clone | Local and smart HTTP; legacy 0/1 and protocol v2; complete packs with same-format negotiation | Cross-format conversion, shallow/filter requests, haves/incremental negotiation, implicit helpers |
+| Push | Expected-old branch/tag proposals; report-status v1/v2; local individual CAS and native advertised HTTP atomic mode | Local atomic visibility, signed/options/rewritten pushes, production server routes |
+| Failure handling | Corrupt/resource-limited incoming transfer refusal; source/installed focused stale/partial/lost-report regressions | A lost report cannot imply rollback or known remote rejection |
+
 CI runs source tests plus this qualification on Linux/macOS/Windows. Wheel and
-sdist are built, installed into separate environments outside the checkout, and
-run the same mandatory qualification on all three platforms. Installation paths
-and artifact hashes are checked. Focused installed push fixtures run when that
-profile is present; unchanged source behavior is covered by source CI and the
-native post-gc worker. The default distribution command retains full installed
-test runs; CI selects `--qualification-only` for its dedicated artifact matrix.
+sdist are built and installed into separate environments outside the checkout,
+then run the same mandatory qualification on all three platforms. Installation
+paths and artifact hashes are checked. Focused diff/revision/ancestry/push
+regressions also run against each installed artifact, including deep histories,
+native oracle cases and negative outcomes. The default distribution command
+retains full installed test runs; CI selects `--qualification-only` for its
+dedicated artifact matrix. Development CGI helpers live with the packaged test
+fixtures; they are not runtime package services or dependencies.
 
 ```
 uv run python scripts/qualify_repository.py --output /selected/source.json
