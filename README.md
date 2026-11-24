@@ -19,12 +19,13 @@ content, explicit tracked overwrite and guarded journal recovery.
 [Protocol framing](docs/protocol.md) adds bounded packet/sideband streams,
 v0/v1 discovery and v2 command boundaries with explicit same-format negotiation.
 
-[Local fetch/clone](docs/transfers.md) uses explicit transports, private object
-quarantine, validated graph closures and expected-old tracking refs.
+[Fetch/clone](docs/transfers.md) uses explicit local or smart-HTTP transports,
+private object quarantine, validated graph closures and expected-old tracking
+refs. HTTPS verifies certificates; authorization is explicitly selected.
 
 Development starts with the [implementation plan](IMPLEMENTATION_PLAN.md) and
 [shared Project](https://github.com/orgs/wispsy/projects/30). The roadmap records
-qualification targets; remote exchange and public hosting are later milestones.
+qualification targets; push, server handlers and public hosting remain later milestones.
 
 Source development does not imply a published package or deployed service.
 
@@ -44,8 +45,7 @@ print(blob.oid(ObjectFormat.SHA256)) # SHA-256
 [Loose storage](docs/storage.md) adds bounded verified reads and atomic
 publish-if-absent writes under an existing owner-controlled objects directory.
 [Repository lifecycle and plumbing](docs/repositories.md) provide `init`,
-`hash-object` and `cat-file`. Filesystem staging and network operations
-remain separate milestones.
+`hash-object` and `cat-file`, with separately qualified staging and transfer APIs.
 
 [Files refs](docs/refs.md) include packed refs, guarded deletion, explicit reflog
 outcomes, validated single-ref compare-and-swap and
@@ -58,7 +58,8 @@ and exclusive, explicitly committed writes through `Repository.index`.
 ignore rules and byte-oriented porcelain status without invoking Git.
 
 [Indexed pack reading](docs/packs.md) provides bounded SHA-1/SHA-256 base-object
-access and bounded iterative OFS/REF delta resolution. Network exchange remains queued.
+access and bounded iterative OFS/REF delta resolution; incoming transfer packs
+also resolve deltas in private quarantine.
 
 Run `uv sync --locked` and `uv run python -m unittest discover -s tests -v`.
 Git is used only as a test oracle; `GITDX_REQUIRE_GIT=1` makes a missing oracle
