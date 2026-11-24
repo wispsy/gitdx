@@ -1,6 +1,7 @@
 """Mandatory native Git qualification, plus a separate no-Git runtime worker."""
 
 import argparse
+from dataclasses import replace
 import hashlib
 import json
 import os
@@ -11,14 +12,20 @@ import sys
 import tempfile
 
 import gitdx
-from gitdx import (Blob, DirectRef, ObjectFormat, ObjectId, PackFile, PackIndex, QualificationEvidence,
-                   RefConflict, Repository, UnsupportedFormat, capability_report, implementation_digest, runtime_toolchain)
+from gitdx import (Blob, Commit, DirectRef, GitdxError, Index, InvalidIndex, ObjectFormat, ObjectId, PackFile, PackIndex, PushState,
+                   PushUpdate, QualificationEvidence, RefConflict, Repository, SmartHTTPTransport, TransferLimits,
+                   UnsupportedFormat, capability_report, implementation_digest, runtime_toolchain, LocalTransport)
 
 IDENTITY=b'Qualification <qualification@example.invalid> 1700000000 +0000'
 CHECKS=('native-objects','packed-read','delta-ofs','delta-ref','packed-refs','ref-cas',
-        'write-after-gc','native-status','checkout','refusal-profiles','no-git-runtime')
+        'write-after-gc','native-status','checkout','refusal-profiles','no-git-runtime',
+        'diff-native','revision-native','ancestry-native','fetch-interop','fetch-v0','fetch-v1','fetch-v2',
+        'push-codec','push-local','push-http','report-status-v1','report-status-v2','native-client-storage',
+        'native-index-pack','corruption-resource','index-v2','refusal-index-required','replacement-refusal')
 CAPABILITIES=('objects.native','storage.loose','storage.pack-index-v2','storage.delta-ofs-ref',
-              'refs.files-packed','worktree.index-stage-status','worktree.checkout','history.commit','config.local')
+              'refs.files-packed','worktree.index-stage-status','worktree.checkout','history.commit','config.local',
+              'diff.trees-bytes','history.revisions','history.ancestry','transfer.fetch-local-http',
+              'protocol.push-records','transfer.push-local','transfer.push-http')
 
 
 def git(path,*args,data=None):
@@ -59,6 +66,22 @@ def make_fixture(root,format):
         git(source,'add','.');git(source,'commit','-m','native '+str(n))
     tip=git(source,'rev-parse','HEAD').strip().decode();old=git(source,'rev-parse','HEAD~2').strip().decode()
     git(source,'branch','older',old);git(source,'tag','-a','qualified','-m','native tag')
+    tree=git(source,'rev-parse','HEAD^{tree}').strip().decode()
+    def node(name,parents=()):
+        args=['commit-tree',tree]
+        for parent in parents:args.extend(('-p',parent))
+        return git(source,*args,data=name.encode()+b'\n').strip().decode()
+    a=node('a',(tip,));b=node('b',(tip,));left=node('left',(a,b));right=node('right',(b,a));other=node('disconnected')
+    for name,oid in (('graph-left',left),('graph-right',right),('disconnected',other)):git(source,'branch',name,oid)
+    queries=('HEAD','qualified','qualified^{}','qualified^{commit}','qualified^{tree}','HEAD~2','graph-left^2','graph-right~2')
+    revisions={q:git(source,'rev-parse','--verify',q).strip().decode() for q in queries}
+    bases=git(source,'merge-base','--all',left,right).splitlines()
+    diff_old=git(source,'rev-parse','HEAD~1^{tree}').strip().decode()
+    diff_new=tree;raw=git(source,'diff-tree','-r','--raw','-z','--no-abbrev','--no-renames',diff_old,diff_new).split(b'\0')
+    diffs=[]
+    for i in range(0,len(raw)-1,2):
+        am,bm,ao,bo,status=raw[i][1:].split()
+        diffs.append((raw[i+1].hex(),int(am,8),int(bm,8),ao.decode(),bo.decode(),status.decode()))
     git(source,'gc','--prune=now');git(source,'pack-refs','--all')
     if not list((source/'.git/objects/pack').glob('*.pack')) or not (source/'.git/packed-refs').is_file():
         raise RuntimeError('native gc did not produce packed objects/refs')
@@ -75,7 +98,9 @@ def make_fixture(root,format):
         if not any(len(line.split())==7 for line in verified.splitlines()):raise RuntimeError('native delta fixture was not generated')
         indexed.append({'pack':str(path.with_suffix('.pack')),'index':str(path.with_suffix('.idx')),
                         'kind':6 if ofs else 7,'objects':[(str(oid),hashlib.sha256(raw.data).hexdigest()) for oid,raw in zip(ids,raws)]})
-    return {'root':str(source),'format':format.value,'tip':tip,'old':old,'objects':objects,'indexed':indexed}
+    return {'root':str(source),'format':format.value,'tip':tip,'old':old,'objects':objects,'indexed':indexed,
+            'revisions':revisions,'bases':[oid.decode() for oid in bases],'left':left,'right':right,'disconnected':other,
+            'diff_old':diff_old,'diff_new':diff_new,'diffs':diffs}
 
 
 def runtime(spec):
@@ -92,6 +117,16 @@ def runtime(spec):
             if hashlib.sha256(pack.read(ObjectId(hex,format)).data).hexdigest()!=digest:raise RuntimeError('native delta reconstruction mismatch')
     tip=ObjectId(spec['tip'],format)
     if repo.refs.resolve().oid!=tip or repo.status():raise RuntimeError('native packed/index/status mismatch')
+    for query,expected in spec['revisions'].items():
+        if str(repo.resolve(query))!=expected:raise RuntimeError('native revision mismatch')
+    if {str(oid) for oid in repo.merge_bases(spec['left'],spec['right'])}!=set(spec['bases']):raise RuntimeError('native criss-cross bases mismatch')
+    if not repo.is_ancestor(tip,spec['left']) or repo.is_ancestor(spec['disconnected'],spec['right']):raise RuntimeError('native ancestry mismatch')
+    if repo.merge_bases(spec['left'],spec['disconnected']):raise RuntimeError('disconnected native bases mismatch')
+    records=[]
+    for c in repo.diff(ObjectId(spec['diff_old'],format),ObjectId(spec['diff_new'],format)):
+        records.append(((c.new_path or c.old_path).hex(),c.old_mode or 0,c.new_mode or 0,
+                        str(c.old_oid) if c.old_oid else '0'*format.hex_size,str(c.new_oid) if c.new_oid else '0'*format.hex_size,c.status))
+    if records!=[tuple(r) for r in spec['diffs']]:raise RuntimeError('native raw diff mismatch')
     repo.refs.update('refs/heads/qualification',tip,expected=None)
     try:repo.refs.update('refs/heads/qualification',tip,expected=None)
     except RefConflict:pass
@@ -103,7 +138,63 @@ def runtime(spec):
     if (root/'qualified.bin').exists() or repo.refs.resolve().oid!=ObjectId(spec['old'],format):raise RuntimeError('packed checkout mismatch')
     repo.apply_checkout(repo.plan_checkout('main'))
     if repo.status() or (root/'qualified.bin').read_bytes()!=b'exact\0\xff\r\n$Id$':raise RuntimeError('post-gc write/status mismatch')
-    print(json.dumps({'new':str(new),'checks':CHECKS[:-2]+('no-git-runtime',)}))
+    transfers=runtime_transfers(repo,spec,new)
+    print(json.dumps({'new':str(new),'checks':CHECKS,'transfers':transfers}))
+
+
+def runtime_transfers(repo,spec,new):
+    root=repo.git_dir.parent.parent;format=repo.object_format;tip=ObjectId(spec['tip'],format)
+    client=Repository.clone(LocalTransport(repo),root/'local-client')
+    if client.refs.resolve().oid!=new or client.status():raise RuntimeError('local clone mismatch')
+    if not client.fetch(LocalTransport(repo),tags=True).complete:raise RuntimeError('local fetch mismatch')
+    destination=Repository.init(root/'local-receiver.git',bare=True,object_format=format)
+    before=snapshot(repo.git_dir)
+    for proposed,expected in ((tip,None),(new,tip)):
+        result=repo.push(LocalTransport(destination),(PushUpdate('refs/heads/main',proposed,expected_old=expected),))
+        if not result.complete or result.peer_atomic or result.atomic:raise RuntimeError('local individual push mismatch')
+    result=repo.push(LocalTransport(destination),(PushUpdate('refs/heads/main',new,expected_old=None),))
+    if result.outcomes[0].state is not PushState.REJECTED:raise RuntimeError('local stale push accepted')
+    for proposed,expected in ((new,None),(None,new)):
+        if not repo.push(LocalTransport(destination),(PushUpdate('refs/tags/temporary',proposed,expected_old=expected),)).complete:
+            raise RuntimeError('local tag create/delete mismatch')
+    if snapshot(repo.git_dir)!=before:raise RuntimeError('local push mutated sender')
+    (root/'gitdx-output.pack').write_bytes(repo.pack((new,)).pack)
+    endpoint=spec['http']+'/http-source.git';current=tip
+    for version in (0,1,2):
+        transport=SmartHTTPTransport(endpoint,allow_http=True,protocol_version=version)
+        fetched=Repository.clone(transport,root/('http-client-'+str(version)))
+        if fetched.refs.resolve().oid!=current or fetched.status():raise RuntimeError('HTTP clone mismatch')
+        tree=Commit.from_bytes(repo.objects.read(current).data,format).tree
+        next_oid=repo.objects.write(Commit.create(tree,author=IDENTITY,committer=IDENTITY,message=('HTTP '+str(version)).encode(),parents=(current,)).to_raw())
+        before=snapshot(repo.git_dir)
+        class LegacyReport:
+            def discover_push(self,control):
+                ad=transport.discover_push(control)
+                return replace(ad,capabilities=tuple(c for c in ad.capabilities if c.name!=b'report-status-v2'))
+            send_pack=transport.send_pack
+        selected=LegacyReport() if version==1 else transport
+        result=repo.push(selected,(PushUpdate('refs/heads/main',next_oid,expected_old=current),))
+        if not result.complete or result.report_version!=(1 if version==1 else 2):raise RuntimeError('native HTTP report version mismatch')
+        if snapshot(repo.git_dir)!=before:raise RuntimeError('HTTP push mutated sender')
+        if not fetched.fetch(transport).complete or fetched.refs.resolve('refs/remotes/origin/main').oid!=next_oid:
+            raise RuntimeError('native HTTP fetch mismatch')
+        if fetched.refs.resolve().oid!=current or fetched.status():raise RuntimeError('fetch moved sender worktree/HEAD')
+        current=next_oid
+    proposals=tuple(PushUpdate('refs/tags/atomic-'+str(n),current,expected_old=None) for n in range(2))
+    result=repo.push(transport,proposals,atomic=True)
+    if not result.complete or not result.atomic or not result.peer_atomic:raise RuntimeError('native advertised atomic push mismatch')
+    deleted=tuple(PushUpdate(p.name,None,expected_old=current) for p in proposals)
+    if not repo.push(transport,deleted,atomic=True).complete:raise RuntimeError('native atomic delete mismatch')
+    # Bad incoming packs and wire-budget failures leave an existing destination unchanged.
+    clean=Repository.init(root/'rejected',object_format=format)
+    before=snapshot(clean.git_dir)
+    for bad,limits in ((SmartHTTPTransport(spec['corrupt']+'/http-source.git',allow_http=True),None),
+                       (LocalTransport(repo),TransferLimits(max_wire_bytes=8))):
+        try:clean.fetch(bad,limits=limits)
+        except GitdxError:pass
+        else:raise RuntimeError('corruption/resource fixture accepted')
+        if snapshot(clean.git_dir)!=before or not clean.refs.resolve().unborn:raise RuntimeError('rejected transfer mutated destination')
+    return {'local':str(new),'http':str(current)}
 
 
 def refusals(source,root):
@@ -134,21 +225,101 @@ def refusals(source,root):
     if snapshot(partial)!=before:raise RuntimeError('native partial clone was mutated')
 
 
+def index_and_history_refusals(source,root,format):
+    for name in ('index-v3','index-v4','split-index','sparse-index','required-index','bad-index-checksum','grafts','replace'):
+        folder=root/name;shutil.copytree(source,folder);metadata=folder/'.git';index=metadata/'index'
+        if name=='index-v3':
+            body=index.read_bytes()[:-format.digest_size]
+            body=body[:4]+(3).to_bytes(4,'big')+body[8:]
+            index.write_bytes(body+hashlib.new(format.value,body).digest())
+            git(folder,'ls-files','--stage')
+        elif name=='index-v4':git(folder,'update-index','--index-version=4')
+        elif name=='split-index':git(folder,'update-index','--split-index')
+        elif name=='sparse-index':
+            git(folder,'sparse-checkout','init','--cone','--sparse-index');git(folder,'sparse-checkout','set','not-selected')
+            try:Index.from_bytes(index.read_bytes(),format)
+            except UnsupportedFormat:pass
+            else:raise RuntimeError('native sparse index unexpectedly accepted')
+        elif name=='required-index':
+            body=index.read_bytes()[:-format.digest_size]+b'abcd'+(0).to_bytes(4,'big')
+            index.write_bytes(body+hashlib.new(format.value,body).digest())
+        elif name=='bad-index-checksum':
+            data=index.read_bytes();index.write_bytes(data[:-1]+bytes((data[-1]^1,)))
+        elif name=='grafts':(metadata/'info/grafts').write_bytes(b'')
+        else:git(folder,'replace','HEAD','HEAD~1');git(folder,'pack-refs','--all')
+        before=snapshot(folder)
+        try:
+            repo=Repository.open(folder)
+            if name in ('grafts','replace'):repo.resolve('HEAD')
+            else:repo.index.read()
+        except (InvalidIndex if name=='bad-index-checksum' else UnsupportedFormat):pass
+        else:raise RuntimeError('unsupported index/history profile accepted: '+name)
+        if snapshot(folder)!=before:raise RuntimeError('refused index/history profile was mutated: '+name)
+
+
+def run_worker(specfile):
+    try:
+        result=subprocess.run([sys.executable,'-I','-W','error::ResourceWarning',str(Path(__file__).resolve()),'--runtime',str(specfile)],
+                              capture_output=True,env=dict(os.environ,PATH='',HTTP_PROXY='http://127.0.0.1:1',
+                              HTTPS_PROXY='http://127.0.0.1:1',GIT_ASKPASS='must-not-execute'),check=True,timeout=180)
+    except subprocess.CalledProcessError as error:
+        raise RuntimeError('no-Git runtime worker failed:\n'+error.stderr.decode('utf-8','replace')[-8192:]) from None
+    return json.loads(result.stdout)
+
+
+def inspect_native(spec):
+    if os.environ.get('PATH')!='':raise RuntimeError('native inspection requires Git absent from PATH')
+    for record in spec['inspect']:
+        repo=Repository.open(record['root'])
+        if str(repo.refs.resolve().oid)!=record['tip']:raise RuntimeError('reverse native ref mismatch')
+        for hex,kind,digest in record['objects']:
+            raw=repo.objects.read(ObjectId(hex,repo.object_format))
+            if raw.kind.value!=kind or hashlib.sha256(raw.data).hexdigest()!=digest:raise RuntimeError('reverse native object mismatch')
+    print(json.dumps({'native-inspection':True}))
+
+
+def native_reverse(folder,url,new):
+    receiver=folder/'local-receiver.git';git(receiver,'config','http.receivepack','true')
+    git(receiver,'index-pack','--strict','--stdin',data=(folder/'gitdx-output.pack').read_bytes())
+    records=[]
+    for name,endpoint in (('local',str(receiver)),('http',url+'/local-receiver.git')):
+        native=folder/('native-'+name)
+        git(folder,'-c','protocol.version=2','clone','--no-local',endpoint,str(native))
+        if name=='local' and git(native,'rev-parse','HEAD').strip().decode()!=new:raise RuntimeError('reverse native clone mismatch')
+        (native/'native.bin').write_bytes(name.encode()+b'\0\xff\r\n');git(native,'add','native.bin');git(native,'commit','-m','native '+name)
+        git(native,'push','origin','main');tip=git(native,'rev-parse','HEAD').strip().decode()
+        git(receiver,'gc','--prune=now');git(receiver,'fsck','--full','--no-dangling')
+        records.append({'root':str(receiver),'tip':tip,'objects':native_objects(receiver)})
+        # Inspect before the next native client changes the same destination.
+        specfile=folder/('inspect-'+name+'.json');specfile.write_text(json.dumps({'inspect':records[-1:]}))
+        if not run_worker(specfile).get('native-inspection'):raise RuntimeError('native inspection did not complete')
+
+
 def qualify(args):
     if not shutil.which('git') or not shutil.which('uv'):raise RuntimeError('Git and uv are mandatory qualification tools')
     if args.installed_prefix and not Path(gitdx.__file__).resolve().is_relative_to(Path(args.installed_prefix).resolve()):
         raise RuntimeError('qualification did not import the selected installation')
     if args.profile!='source' and not args.installed_prefix:raise RuntimeError('installed qualification requires its selected prefix')
     artifact=hashlib.sha256(Path(args.artifact).read_bytes()).hexdigest() if args.artifact else None
+    # Development-only CGI peer shared with the regression suite. Gitdx was
+    # imported from the selected installation before adding the tests directory.
+    sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests'))
+    from test_http_transport import http_fixture
     with tempfile.TemporaryDirectory() as tmp:
         root=Path(tmp)
         for format in ObjectFormat:
-            folder=root/format.value;folder.mkdir();spec=make_fixture(folder,format);specfile=folder/'runtime.json';specfile.write_text(json.dumps(spec))
-            result=subprocess.run([sys.executable,'-I','-W','error::ResourceWarning',str(Path(__file__).resolve()),'--runtime',str(specfile)],
-                                  capture_output=True,env=dict(os.environ,PATH=''),check=True)
-            new=json.loads(result.stdout)['new'];source=Path(spec['root'])
+            folder=root/format.value;folder.mkdir();spec=make_fixture(folder,format);source=Path(spec['root'])
+            git(folder,'clone','--bare','--no-local',str(source/'.git'),str(folder/'http-source.git'))
+            git(folder/'http-source.git','config','http.receivepack','true')
+            with http_fixture(folder) as (url,_),http_fixture(folder,mode='corrupt-pack') as (corrupt,_):
+                spec.update(http=url,corrupt=corrupt);specfile=folder/'runtime.json';specfile.write_text(json.dumps(spec))
+                result=run_worker(specfile);new=result['new']
+                if tuple(result['checks'])!=CHECKS:raise RuntimeError('incomplete runtime qualification')
+                if git(folder/'http-source.git','rev-parse','HEAD').strip().decode()!=result['transfers']['http']:
+                    raise RuntimeError('native HTTP push ref mismatch')
+                git(folder/'http-source.git','fsck','--full','--no-dangling');native_reverse(folder,url,new)
             if git(source,'status','--porcelain') or git(source,'rev-parse','HEAD').strip().decode()!=new:raise RuntimeError('native post-write mismatch')
-            git(source,'fsck','--full','--no-dangling');refusals(source,folder)
+            git(source,'fsck','--full','--no-dangling');index_and_history_refusals(source,folder,format);refusals(source,folder)
     tools=dict(runtime_toolchain(),git=subprocess.run(['git','--version'],capture_output=True,text=True,check=True).stdout.strip(),
                uv=subprocess.run(['uv','--version'],capture_output=True,text=True,check=True).stdout.strip())
     selected=QualificationEvidence(implementation_digest(),args.profile,tools,CHECKS,CAPABILITIES,
@@ -164,7 +335,12 @@ def main():
     parser.add_argument('--runtime');parser.add_argument('--profile',choices=('source','wheel','sdist'),default='source')
     parser.add_argument('--artifact');parser.add_argument('--installed-prefix');parser.add_argument('--source-revision');parser.add_argument('--output')
     args=parser.parse_args()
-    if args.runtime:runtime(json.loads(Path(args.runtime).read_text()))
+    if args.runtime:
+        def forbidden(*args,**kwargs):raise RuntimeError('runtime attempted to execute an external helper')
+        subprocess.run=forbidden
+        spec=json.loads(Path(args.runtime).read_text())
+        if 'inspect' in spec:inspect_native(spec)
+        else:runtime(spec)
     else:qualify(args)
 
 

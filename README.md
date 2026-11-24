@@ -6,6 +6,8 @@ Python 3.14+ · MIT
 
 [Capability reports](docs/qualification.md) distinguish implementation support
 from explicitly selected, runtime-bound qualification evidence.
+The native compatibility matrix covers source/wheel/sdist on Linux, macOS and
+Windows, including same-format local/HTTP exchange and separate no-Git workers.
 
 [Byte/tree diffs](docs/diffs.md) preserve byte paths, modes and content, with
 bounded LF hunks, binary summaries and optional deterministic rename matching.
