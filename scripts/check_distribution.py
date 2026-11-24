@@ -1,5 +1,7 @@
 """Build and exercise wheel/sdist installations outside the source checkout."""
 
+import argparse
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -12,7 +14,14 @@ def run(*args, cwd=None, env=None):
 
 
 def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--qualification-only',action='store_true',help='run installed native repository and focused push qualification')
+    parser.add_argument('--output-dir',help='destination for versioned qualification records')
+    parser.add_argument('--source-revision')
+    args=parser.parse_args()
     root = Path(__file__).resolve().parents[1]
+    evidence=Path(args.output_dir).absolute() if args.output_dir else None
+    if evidence:evidence.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         workspace = Path(tmp)
         dist = workspace / "dist"
@@ -21,6 +30,7 @@ def main():
         if len(artifacts) != 2:
             raise RuntimeError("expected exactly one wheel and one sdist")
         for i, artifact in enumerate(artifacts):
+            profile='wheel' if artifact.suffix=='.whl' else 'sdist'
             venv = workspace / f"installed-{i}"
             run("uv", "venv", "--python", sys.executable, str(venv))
             python = venv / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
@@ -31,8 +41,26 @@ def main():
             no_git = dict(os.environ, PATH="")
             run(str(python), "-I", "-c", smoke, cwd=workspace, env=no_git)
             run(str(python), "-I", "-m", "gitdx", "--help", cwd=workspace, env=no_git)
-            run(str(python), "-I", "-W", "error::ResourceWarning", "-m", "unittest", "discover",
-                "-s", str(root / "tests"), "-v", cwd=workspace)
+            report=(evidence or workspace)/(profile+'.json')
+            selected=[str(python),'-I','-W','error::ResourceWarning',str(root/'scripts/qualify_repository.py'),
+                      '--profile',profile,'--artifact',str(artifact),'--installed-prefix',str(venv),'--output',str(report)]
+            if args.source_revision:selected.extend(('--source-revision',args.source_revision))
+            run(*selected,cwd=workspace)
+            selected_report=subprocess.run([str(python),'-I','-m','gitdx','capabilities','--evidence',str(report)],
+                                           cwd=workspace,env=no_git,capture_output=True,text=True,check=True)
+            if json.loads(selected_report.stdout)['qualification']['profile']!=profile:
+                raise RuntimeError('installed capability report selected a different profile')
+            print(profile+': native repository qualification and no-Git evidence selection passed',flush=True)
+            if args.qualification_only:
+                # New push fixtures run against each installed artifact. Existing
+                # behavior is covered by the native post-gc worker and source CI.
+                if list((root/'tests').glob('test_push*.py')):
+                    run(str(python),'-I','-W','error::ResourceWarning','-m','unittest','discover',
+                        '-s',str(root/'tests'),'-p','test_push*.py','-v',cwd=workspace,
+                        env=dict(os.environ,GITDX_REQUIRE_GIT='1'))
+            else:
+                run(str(python), "-I", "-W", "error::ResourceWarning", "-m", "unittest", "discover",
+                    "-s", str(root / "tests"), "-v", cwd=workspace)
 
 
 if __name__ == "__main__":
