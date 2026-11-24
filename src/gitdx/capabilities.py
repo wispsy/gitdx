@@ -31,6 +31,7 @@ _PROFILES=(
     ('history.commit', 'supported', 'Explicit identities and expected-HEAD commits', ('write-after-gc',)),
     ('diff.trees-bytes', 'supported', 'Bounded explicit-tree byte diffs, LF hunks and optional deterministic renames', ('diff-native',)),
     ('history.revisions', 'supported', 'Explicit refs/OID prefixes, parent suffixes and typed tag peeling', ('revision-native',)),
+    ('history.ancestry', 'supported', 'Iterative two-root ancestry and all deterministic best common ancestors', ('ancestry-native',)),
     ('transfer.fetch-local-http', 'supported', 'Complete same-format local and smart-HTTP fetch/clone', ('fetch-interop',)),
     ('protocol.push-records', 'supported', 'Bounded receive-pack commands and report-status v1/v2 records', ('push-codec',)),
     ('config.local', 'supported', 'Local ordered configuration and conservative worktree policy', ('native-status','refusal-profiles')),

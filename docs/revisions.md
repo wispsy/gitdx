@@ -48,3 +48,31 @@ gitdx -C repository rev-parse 'refs/tags/release^{}'
 This selected grammar follows Git's
 [revision notation](https://git-scm.com/docs/gitrevisions); the explicit
 ambiguity and unsupported-syntax rules above define this implementation's scope.
+
+## Ancestry and merge bases
+
+`repo.is_ancestor(ancestor, descendant)` accepts two supported revision strings
+or OIDs and returns a boolean. `repo.merge_bases(left, right)` returns **all** best
+common ancestors of exactly two commit-ish roots, sorted by full OID. Annotated
+tags peel to commits. Disconnected histories return `False`/`()`, a commit is its
+own ancestor/base, and criss-cross histories may have multiple bases. Commit
+dates and input order do not select or discard a base. Octopus, fork-point,
+reflog/replace semantics and arbitrary single-base selection are not implied.
+
+The complete ancestry reachable from both roots is type/parent/cycle-validated
+iteratively within one shared `RevisionLimits` budget before a result is returned.
+Missing parents, corruption or exhausted limits raise; they never mean no common
+ancestor. Merge-base labels propagate once over a descendant-to-parent
+topological traversal, discarding common ancestors dominated by better ones.
+This avoids pairwise ancestor queries and recursive traversal. Both queries are
+read-only and do not execute Git.
+
+```
+gitdx -C repository is-ancestor 'release^{}' HEAD
+gitdx -C repository merge-base main topic
+```
+
+The predicate CLI uses status 0 for true and 1 for false. `merge-base` always
+prints all bases (one full ID per line), with status 0 for a nonempty result and
+1 for disconnected roots. Both commands use status 2 for errors. The two-root
+definition follows Git's [merge-base contract](https://git-scm.com/docs/git-merge-base).
