@@ -137,22 +137,28 @@ def create_commit(repo, *, author, committer, message, expected_head, parents=No
         return oid
 
 
-def list_refs(repo, prefix, *, limits=None):
+def list_refs(repo, prefix, *, limits=None, check=None):
     if prefix not in ("refs/heads/", "refs/tags/"):raise ValueError("select branches or tags explicitly")
     limits = limits or HistoryLimits();refs = repo.refs
     names = {e.name for e in refs.packed().entries if e.name.startswith(prefix)}
     if len(names) > limits.max_refs:raise ObjectLimitExceeded("ref listing limit exceeded")
     root = refs.path/prefix.rstrip("/");stack = [(root, 0)];visited = 0
     while stack:
+        if check:check()
         path, depth = stack.pop();check_path(refs.path, path)
         if not path.exists():continue
         if depth > limits.max_depth:raise ObjectLimitExceeded("ref listing depth exceeded")
         with os.scandir(path) as children:
             for child in children:
+                if check:check()
                 visited += 1
                 if visited > limits.max_refs:raise ObjectLimitExceeded("ref listing scan limit exceeded")
                 target = path/child.name;check_path(refs.path, target)
                 if child.is_dir(follow_symlinks=False):stack.append((target, depth+1))
                 elif not child.name.endswith(".lock"):names.add(target.relative_to(refs.path).as_posix())
                 if len(names) > limits.max_refs:raise ObjectLimitExceeded("ref listing limit exceeded")
-    return tuple((name, refs.resolve(name).oid) for name in sorted(names))
+    result=[]
+    for name in sorted(names):
+        if check:check()
+        result.append((name,refs.resolve(name).oid))
+    return tuple(result)

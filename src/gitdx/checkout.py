@@ -14,6 +14,7 @@ from .object_store import ObjectLimitExceeded
 from .objects import Blob, Commit, ObjectId, ObjectType, Tree
 from .refs import DirectRef, SymbolicRef, RefConflict
 from .working_tree import WorkingTree, WorktreeLimits, portable_path
+from .worktree_policy import validate_attributes
 
 
 class CheckoutConflict(GitdxError):
@@ -244,8 +245,7 @@ def plan_checkout(repo, destination, *, unborn=False, overwrite_tracked=False, l
         raw = repo.objects.read(oid)
         if raw.kind is not ObjectType.BLOB:raise InvalidObject("checkout file must name a blob")
         budget.add(len(raw.data))
-        if path.split(b"/")[-1].lower()==b".gitattributes" and any(l.strip() and not l.lstrip().startswith(b"#") for l in raw.data.splitlines()):
-            raise UnsupportedFormat("checkout attribute transformations are unsupported")
+        if path.split(b"/")[-1].lower()==b".gitattributes":validate_attributes(raw.data)
         previous = before[path]
         if mode==0o120000 and work.symlinks:
             if os.name=="nt":raise UnsupportedFormat("Windows symlink checkout requires core.symlinks=false")

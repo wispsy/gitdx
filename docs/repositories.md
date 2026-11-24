@@ -27,11 +27,13 @@ currently refused. Object lookup uses loose objects and indexed packs with
 
 Repository format versions 0 and 1 are recognized. Only native SHA-1/SHA-256
 and files refs are selected; reftable and all other required extensions fail
-before operations. The local UTF-8 config subset supports case-insensitive
-section/variable names, quoted subsection names, unquoted values, inline comments,
-bare booleans and repeated last-value variables. Includes and quoted, escaped or
-continued values are refused. Global/system/environment config is not loaded.
-The library never executes hooks, filters, helpers or signing programs.
+before operations. The [local UTF-8 configuration profile](configuration.md)
+supports case-insensitive sections/variables, case-sensitive quoted subsections,
+quoted/escaped/continued values, inline comments, bare booleans and ordered
+multivars with last-value queries. Repository operations refuse includes;
+separate inspection can explicitly select confined include files.
+Global/system/environment config is not loaded. The library never executes
+hooks, filters, helpers or signing programs.
 
 The CLI operates relative to `-C DIRECTORY`:
 
