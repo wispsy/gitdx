@@ -7,6 +7,9 @@ Python 3.14+ · MIT
 [Capability reports](docs/qualification.md) distinguish implementation support
 from explicitly selected, runtime-bound qualification evidence.
 
+[Byte/tree diffs](docs/diffs.md) preserve byte paths, modes and content, with
+bounded LF hunks, binary summaries and optional deterministic rename matching.
+
 [Push proposals](docs/push.md) select expected-old branch/tag updates and expose
 per-ref outcomes through explicit local or smart-HTTP destinations. Atomic
 requests require peer advertisement and consistent reports; local refs remain

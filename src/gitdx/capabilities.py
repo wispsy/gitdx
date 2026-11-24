@@ -29,6 +29,7 @@ _PROFILES=(
     ('worktree.checkout', 'supported', 'Reviewed branch/detached/unborn checkout', ('checkout',)),
     ('worktree.checkout-recovery', 'supported', 'Guarded process-interruption recovery', ('checkout-fault',)),
     ('history.commit', 'supported', 'Explicit identities and expected-HEAD commits', ('write-after-gc',)),
+    ('diff.trees-bytes', 'supported', 'Bounded explicit-tree byte diffs, LF hunks and optional deterministic renames', ('diff-native',)),
     ('transfer.fetch-local-http', 'supported', 'Complete same-format local and smart-HTTP fetch/clone', ('fetch-interop',)),
     ('protocol.push-records', 'supported', 'Bounded receive-pack commands and report-status v1/v2 records', ('push-codec',)),
     ('config.local', 'supported', 'Local ordered configuration and conservative worktree policy', ('native-status','refusal-profiles')),

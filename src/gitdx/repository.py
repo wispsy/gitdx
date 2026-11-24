@@ -71,6 +71,10 @@ class Repository:
         from .history import walk_history
         return walk_history(self, starts, limits=limits)
 
+    def diff(self, old_tree, new_tree, **options):
+        from .diff import diff_trees
+        return diff_trees(self, old_tree, new_tree, **options)
+
     def branches(self, *, limits=None):
         from .history import list_refs
         return list_refs(self, "refs/heads/", limits=limits)

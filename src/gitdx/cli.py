@@ -59,6 +59,11 @@ def main(argv: list[str] | None = None) -> int:
     log.add_argument("--max-count", type=int, default=100)
     commands.add_parser("branches", help="list local branches as JSON lines")
     commands.add_parser("tags", help="list tags as JSON lines")
+    diff = commands.add_parser('diff', help='compare two explicit tree IDs; empty selects an empty tree')
+    diff.add_argument('old_tree');diff.add_argument('new_tree')
+    diff.add_argument('--context', type=int, default=3)
+    diff.add_argument('--renames', type=int, metavar='PERCENT', help='enable bounded rename matching, threshold 1..100')
+    diff.add_argument('--patch', action='store_true', help='print an escaped ASCII patch presentation')
     checkout = commands.add_parser("checkout",help="apply a safe checkout or print its reviewed changes")
     checkout.add_argument("destination")
     checkout.add_argument("--detach",action="store_true",help="destination is a full commit ID")
@@ -100,6 +105,23 @@ def main(argv: list[str] | None = None) -> int:
                 with (base/args.evidence).open('rb') as stream:data=stream.read(1024*1024+1)
                 evidence=QualificationEvidence.from_json(data)
             print(json.dumps(capability_report(evidence),sort_keys=True))
+        elif args.command == 'diff':
+            from .diff import render_patch
+            repo = Repository.discover(base)
+            old = None if args.old_tree == 'empty' else ObjectId(args.old_tree, repo.object_format)
+            new = None if args.new_tree == 'empty' else ObjectId(args.new_tree, repo.object_format)
+            for change in repo.diff(old, new, context=args.context, detect_renames=args.renames is not None,
+                                    rename_threshold=args.renames if args.renames is not None else 50):
+                if args.patch:sys.stdout.write(render_patch(change.patch()))
+                else:
+                    print(json.dumps({'status':change.status, 'old_path_hex':change.old_path.hex() if change.old_path is not None else None,
+                                      'new_path_hex':change.new_path.hex() if change.new_path is not None else None,
+                                      'old_mode':change.old_mode, 'new_mode':change.new_mode,
+                                      'old_oid':str(change.old_oid) if change.old_oid else None,
+                                      'new_oid':str(change.new_oid) if change.new_oid else None,
+                                      'binary':change.binary, 'similarity':change.similarity,
+                                      'hunks':[{'old_start':h.old_start,'old_count':h.old_count,'new_start':h.new_start,'new_count':h.new_count,
+                                                'lines':[{'kind':line.kind,'hex':line.data.hex()} for line in h.lines]} for h in change.hunks]}))
         elif args.command == "init":
             repo = Repository.init(base / args.path, bare=args.bare, object_format=args.object_format,
                                    initial_branch=args.initial_branch)
