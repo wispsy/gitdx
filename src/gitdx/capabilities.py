@@ -41,7 +41,8 @@ _PROFILES=(
     ('repository.linked-worktrees', 'unsupported', 'Gitfiles/commondir and linked worktrees are refused', ()),
     ('attributes.conversion', 'unsupported', 'External filters, text conversion and encoding drivers never execute', ()),
     ('refs.atomic-multi-update', 'unsupported', 'Single-ref transactions do not promise atomic multi-ref visibility', ()),
-    ('transfer.push', 'unsupported', 'Push is not selected in this profile yet', ()),
+    ('transfer.push-local', 'supported', 'Explicit branch/tag pushes to bare local destinations with individual CAS outcomes', ('push-local',)),
+    ('transfer.push-http', 'unsupported', 'Smart-HTTP push is not selected in this profile yet', ()),
     ('server.git-routes', 'unsupported', 'Production upload/receive handlers are separately scoped', ()),
     ('objects.cross-format', 'unsupported', 'Object-format advertisement never negotiates conversion', ()),
 )

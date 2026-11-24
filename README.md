@@ -7,6 +7,9 @@ Python 3.14+ · MIT
 [Capability reports](docs/qualification.md) distinguish implementation support
 from explicitly selected, runtime-bound qualification evidence.
 
+[Push proposals](docs/push.md) select expected-old branch/tag updates and expose
+per-ref outcomes through an explicit bare local destination.
+
 [Configuration policy](docs/configuration.md) provides ordered Git values,
 quoting/continuations and explicitly confined include inspection.
 
