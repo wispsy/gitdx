@@ -22,6 +22,7 @@ from .checkout_transaction import CheckoutResult
 from .quarantine import ObjectQuarantine, unpack_objects
 from .transfers import (CloneIncomplete, FetchFailure, FetchInterrupted, FetchResult, FetchTransport, LocalTransport,
                         TransferCancelled, TransferControl, TransferError, TransferLimits, TransferTimeout, clone, fetch)
+from .http_transport import HTTPAuthorization, SmartHTTPTransport
 from .pktline import (DELIMITER, FLUSH, RESPONSE_END, Packet, PacketDecoder, PacketKind, ProtocolBudget,
                       ProtocolCancelled, ProtocolError, ProtocolLimitExceeded, ProtocolLimits, ProtocolTimeout,
                       RemoteProtocolError, Sideband, decode_sideband, encode_packet, encode_sideband, read_packets, write_packets)
@@ -45,6 +46,7 @@ __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPla
 __all__ += ["CheckoutResult"]
 __all__ += ["Config", "ConfigEntry", "RepositoryConfig", "parse_config", "parse_values", "read_config"]
 __all__ += ["ObjectQuarantine", "unpack_objects"]
+__all__ += ["HTTPAuthorization", "SmartHTTPTransport"]
 __all__ += ["CloneIncomplete", "FetchFailure", "FetchInterrupted", "FetchResult", "FetchTransport", "LocalTransport",
             "TransferCancelled", "TransferControl", "TransferError", "TransferLimits", "TransferTimeout", "clone", "fetch"]
 __all__ += ["DELIMITER", "FLUSH", "RESPONSE_END", "Packet", "PacketDecoder", "PacketKind", "ProtocolBudget", "ProtocolCancelled",

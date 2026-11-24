@@ -1,6 +1,9 @@
 from dataclasses import replace
 from pathlib import Path
 import os
+import json
+import subprocess
+import sys
 import tempfile
 import threading
 import unittest
@@ -97,6 +100,16 @@ class TransferTests(unittest.TestCase):
         self.assertEqual(caught.exception.path,path)
         self.assertTrue(Repository.open(path).refs.resolve().unborn)
         self.assertFalse((path/'file').exists())
+
+    def test_cli_clone_and_fetch_without_git_or_implicit_transport(self):
+        env=dict(os.environ,PATH='');path=self.root/'cli'
+        args=[sys.executable,'-m','gitdx','clone',str(self.source.work_tree),str(path),'--transport','local']
+        result=subprocess.run(args,capture_output=True,env=env,check=True)
+        self.assertEqual(json.loads(result.stdout)['head'],str(self.tip))
+        result=subprocess.run([sys.executable,'-m','gitdx','-C',str(path),'fetch',str(self.source.work_tree),'--transport','local'],capture_output=True,env=env,check=True)
+        self.assertTrue(json.loads(result.stdout)['complete'])
+        result=subprocess.run(args[:-2],capture_output=True,env=env)
+        self.assertEqual(result.returncode,2)
 
 
 class TransferGitTests(unittest.TestCase):

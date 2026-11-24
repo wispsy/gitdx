@@ -58,6 +58,20 @@ def main(argv: list[str] | None = None) -> int:
     checkout.add_argument("--overwrite-tracked",action="store_true",help="discard tracked changes; untracked content stays protected")
     checkout.add_argument("--dry-run",action="store_true",help="print the immutable plan without mutation")
     commands.add_parser("recover-checkout",help="roll back an interrupted checkout or finalize a committed journal")
+    clone = commands.add_parser('clone',help='clone through an explicitly selected transport into a new path')
+    clone.add_argument('source');clone.add_argument('path');clone.add_argument('--bare',action='store_true')
+    clone.add_argument('--branch');clone.add_argument('--no-checkout',action='store_true')
+    clone.add_argument('--object-format',choices=list(ObjectFormat))
+    fetch = commands.add_parser('fetch',help='fetch validated objects and update tracking refs')
+    fetch.add_argument('source');fetch.add_argument('--remote',default='origin')
+    fetch.add_argument('--branch',action='append');fetch.add_argument('--tags',action='store_true')
+    fetch.add_argument('--allow-rewind',action='store_true')
+    for command in (clone,fetch):
+        command.add_argument('--transport',choices=('local','http'),required=True)
+        command.add_argument('--allow-http',action='store_true',help='explicitly permit cleartext HTTP')
+        command.add_argument('--protocol-version',type=int,choices=(0,1,2),default=2)
+        command.add_argument('--authorization-env',help='explicit environment variable containing a Basic/Bearer header')
+        command.add_argument('--timeout',type=float,default=30)
     args = parser.parse_args(argv)
     try:
         base = Path(args.directory).absolute()
@@ -67,6 +81,31 @@ def main(argv: list[str] | None = None) -> int:
             repo = Repository.init(base / args.path, bare=args.bare, object_format=args.object_format,
                                    initial_branch=args.initial_branch)
             print(f"Initialized {'bare ' if repo.bare else ''}repository in {repo.git_dir}")
+        elif args.command in ('clone','fetch'):
+            from .http_transport import HTTPAuthorization, SmartHTTPTransport
+            from .transfers import LocalTransport, TransferLimits
+            limits=TransferLimits(max_seconds=args.timeout)
+            if args.transport=='local':
+                if args.authorization_env or args.allow_http:raise ValueError('HTTP options require the HTTP transport')
+                transport=LocalTransport(base/args.source)
+            else:
+                authorization=None
+                if args.authorization_env:
+                    value=os.environ.get(args.authorization_env)
+                    if value is None:raise ValueError('selected authorization environment value is missing')
+                    authorization=HTTPAuthorization(value)
+                transport=SmartHTTPTransport(args.source,authorization=authorization,allow_http=args.allow_http,protocol_version=args.protocol_version)
+            if args.command=='clone':
+                repo=Repository.clone(transport,base/args.path,bare=args.bare,branch=args.branch,checkout=not args.no_checkout,
+                                      object_format=args.object_format,limits=limits)
+                print(json.dumps({'path':str(repo.git_dir),'object_format':repo.object_format.value,'head':str(repo.refs.resolve().oid) if repo.refs.resolve().oid else None}))
+            else:
+                result=Repository.discover(base).fetch(transport,remote=args.remote,branches=args.branch,tags=args.tags,
+                                                      allow_rewind=args.allow_rewind,limits=limits)
+                print(json.dumps({'complete':result.complete,'received_objects':result.received_objects,
+                                  'updated':[r.name for r in result.updated],
+                                  'rejected':[{'name':r.name,'reason':r.reason} for r in result.rejected]}))
+                if not result.complete:return 2
         elif args.command == "hash-object":
             repo = None
             try:
