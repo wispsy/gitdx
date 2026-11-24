@@ -1,6 +1,7 @@
 """Small argparse plumbing commands over the public repository API."""
 
 import argparse
+from importlib.metadata import version
 from pathlib import Path
 import sys
 import json
@@ -22,7 +23,7 @@ def _push_json(result):
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Git-compatible repository operations in Python")
-    parser.add_argument("--version", action="version", version="gitdx 0.1.0")
+    parser.add_argument("--version", action="version", version=f"gitdx {version('gitdx')}")
     parser.add_argument("-C", dest="directory", default=".", help="operate relative to this directory")
     commands = parser.add_subparsers(dest="command", required=True)
     initialize = commands.add_parser("init", help="create a new repository without replacing metadata")

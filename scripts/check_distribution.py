@@ -18,14 +18,15 @@ def main():
     parser.add_argument('--qualification-only',action='store_true',help='run installed native compatibility and focused history/diff/push regressions')
     parser.add_argument('--output-dir',help='destination for versioned qualification records')
     parser.add_argument('--source-revision')
+    parser.add_argument('--artifacts',help='qualify prebuilt release artifacts without rebuilding them')
     args=parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     evidence=Path(args.output_dir).absolute() if args.output_dir else None
     if evidence:evidence.mkdir(parents=True,exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         workspace = Path(tmp)
-        dist = workspace / "dist"
-        run("uv", "build", "--no-sources", "--out-dir", str(dist), cwd=root)
+        dist = Path(args.artifacts).absolute() if args.artifacts else workspace / "dist"
+        if not args.artifacts:run("uv", "build", "--no-sources", "--out-dir", str(dist), cwd=root)
         artifacts = list(dist.glob("*.whl")) + list(dist.glob("*.tar.gz"))
         if len(artifacts) != 2:
             raise RuntimeError("expected exactly one wheel and one sdist")
