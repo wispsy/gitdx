@@ -70,3 +70,39 @@ Rejected/failed publication can leave verified unreachable destination objects.
 Native Git client pushes into Gitdx-created storage and Gitdx local pushes read by
 native Git qualify both algorithms. These are storage/client interoperability
 fixtures; they do not supply a production receive-pack listener.
+
+## Smart HTTP and atomic requests
+
+`SmartHTTPTransport` uses the same selected HTTPS/Basic/Bearer, URL, redirect,
+proxy/helper-isolation and bounded socket/DNS policy as fetch. It discovers
+`git-receive-pack` through legacy v0/v1 even when fetch uses v2. Request and
+response content types select receive-pack explicitly. Report-status v2 is
+preferred when advertised, with v1 fallback; sideband progress/error bytes remain
+bounded and are never echoed as public rejection reasons.
+
+`atomic=True` requires the peer's atomic advertisement before upload. Returned
+atomic completion also requires consistent per-ref reports. A peer that reports
+mixed results for an atomic request produces unknown outcomes, not a false
+guarantee. Native Git fixtures verify normal partial acceptance and real atomic
+all-rejected behavior against the resulting refs. This remote capability does
+not change the local files backend's non-atomic contract.
+
+Native HTTP tests cover both formats and report versions, create/update/delete,
+stale writers, authorization and format refusal before upload, and disconnect
+after native acceptance. Sender snapshots remain unchanged on all paths.
+Production serving, hooks, signed pushes, push options, translated exchange and
+ref rewrites remain separately scoped.
+
+## CLI
+
+```
+gitdx -C /owned/source push /owned/destination.git --transport local --ref refs/heads/main --new FULL_ID --expected-old absent
+gitdx -C /owned/source push https://host/repo.git --transport http --ref refs/heads/main --new FULL_ID --expected-old OLD_ID
+```
+
+`--delete` replaces `--new`; `--force` changes client preflight only. `--atomic`
+requires advertised support. Transport, deadline and explicit authorization
+environment selection follow [transfer policy](transfers.md). Success returns 0,
+known rejection/not-sent outcomes return 2, and unknown post-upload outcomes return
+3 with structured JSON plus a fixed inspection message. Other input/connection
+failures return 1. Credentials and raw peer rejection text never appear in JSON.

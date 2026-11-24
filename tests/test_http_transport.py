@@ -58,6 +58,11 @@ def http_fixture(root,*,mode='native',authorization=None,tls=False):
                 SERVER_PROTOCOL='HTTP/1.1',REMOTE_ADDR='127.0.0.1')
             if self.headers.get('Git-Protocol'):current['HTTP_GIT_PROTOCOL']=self.headers['Git-Protocol']
             output=subprocess.run([executable,'http-backend'],input=body,capture_output=True,env=current,check=True).stdout
+            if mode=='lost-push-report' and parts.path.endswith('/git-receive-pack') and self.command=='POST':
+                self.close_connection=True
+                try:self.connection.shutdown(socket.SHUT_RDWR)
+                except OSError:pass
+                return
             header,separator,data=output.partition(b'\r\n\r\n')
             if not separator:header,separator,data=output.partition(b'\n\n')
             if not separator:raise AssertionError('invalid Git CGI fixture response')
