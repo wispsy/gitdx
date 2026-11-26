@@ -6,20 +6,16 @@ from itertools import islice
 import time
 from typing import Protocol
 
-from .config import parse_config
 from .errors import GitdxError, InvalidObject, UnsupportedFormat
-from .filesystem import check_path, read_file
 from .history import HistoryLimits
 from .names import InvalidRef, validate_refname
 from .objects import ObjectId, ObjectType
-from .object_store import MissingObject, ObjectLimitExceeded
 from .pack_writer import PackWriteLimits, write_pack
 from .pktline import PacketDecoder, ProtocolBudget, ProtocolError, ProtocolLimits
 from .protocol import Advertisement, Capability, ObjectFormatMismatch, encode_advertisement, parse_advertisement
 from .push_protocol import (CommandStatus, PushCommand, ReportStatus, encode_push_request, encode_report_status,
                             negotiate_push, parse_push_request, parse_report_status)
-from .quarantine import ObjectQuarantine
-from .refs import DirectRef, RefConflict, RefLocked
+from .receive import ReceiveLimits, ReceivePolicy, ReceiveRejected, ReceiveState, receive, receive_profile
 from .transfers import TransferControl, TransferError
 
 
@@ -174,18 +170,7 @@ def push(repo,transport,updates,*,atomic=False,limits=None,cancel=None):
 
 
 def receiver_policy(repo,control):
-    control.check()
-    if not repo.bare:raise UnsupportedFormat('local push requires an explicitly selected bare destination')
-    config=parse_config(read_file(repo.git_dir,repo.git_dir/'config',1024*1024));values=config.values
-    if config.object_format!=repo.object_format or not config.bare:raise UnsupportedFormat('local receive profile changed')
-    if values.get_all('core','hookspath') or values.get_all('receive','procreceiverefs'):
-        raise UnsupportedFormat('local push does not execute configured receive hooks')
-    if values.boolean('receive','fsckobjects') or values.boolean('transfer','fsckobjects'):
-        raise UnsupportedFormat('native fsck policy requires a separately qualified receiver')
-    for name in ('pre-receive','update','post-receive','post-update','proc-receive','push-to-checkout'):
-        path=repo.git_dir/'hooks'/name;check_path(repo.git_dir,path)
-        if path.exists():raise UnsupportedFormat('local push refuses active receive hooks')
-    return values.boolean('receive','denydeletes'),values.boolean('receive','denynonfastforwards')
+    return receive_profile(repo,control)
 
 
 def discover_local(transport,control):
@@ -197,44 +182,18 @@ def discover_local(transport,control):
 
 
 def receive_local(transport,ad,request,control):
-    repo=transport._repo();receiver_policy(repo,control);control.consume(len(request))
+    repo=transport._repo();receiver_policy(repo,control)
     if repo.object_format!=ad.format:raise UnsupportedFormat('local receive object format changed')
     actual=discover_local(transport,control)
     parsed=parse_push_request(request,actual,repo.object_format,limits=protocol_limits(control));commands=parsed.commands
-    try:names=[c.name.decode('ascii') for c in commands]
-    except UnicodeError:raise UnsupportedFormat('local push requires portable ref names') from None
-    for name in names:
-        validate_refname(name)
-        if not name.startswith(('refs/heads/','refs/tags/')):raise UnsupportedFormat('local receive selects branch/tag refs only')
-    check_names(names)
-    roots=tuple(c.new for c in commands if c.new is not None)
-    if roots:
-        try:
-            with ObjectQuarantine(repo,limits=control.limits.pack,check=control.check) as incoming:
-                incoming.receive(parsed.pack);incoming.validate(roots)
-                for command in commands:
-                    if command.new and command.name.startswith(b'refs/heads/') and incoming.read(command.new).kind is not ObjectType.COMMIT:
-                        raise InvalidObject('received branch does not name a commit')
-                incoming.promote()
-        except (InvalidObject,MissingObject,ObjectLimitExceeded) as error:
-            report=ReportStatus(False,tuple(CommandStatus(c.name,False,b'unpacker error') for c in commands),b'invalid pack or graph')
-            wire=encode_report_status(report,commands,repo.object_format,limits=protocol_limits(control));control.consume(len(wire));return wire
-    statuses=[]
-    for command,name in zip(commands,names):
-        control.check()
-        deny_deletes,deny_rewinds=receiver_policy(repo,control)
-        current=repo.refs.read(name);expected=DirectRef(command.old) if command.old else None
-        reason=None
-        if current!=expected:reason=b'stale reference'
-        elif command.new is None and deny_deletes:reason=b'deletion prohibited'
-        elif command.old and command.new and name.startswith('refs/heads/') and deny_rewinds and not ancestor(repo,command.old,command.new,control):
-            reason=b'non-fast-forward'
-        if reason is not None:
-            statuses.append(CommandStatus(command.name,False,reason));continue
-        try:
-            if command.new is None:repo.refs.delete(name,expected=command.old)
-            else:repo.refs.update(name,command.new,expected=command.old)
-        except (RefConflict,RefLocked,InvalidRef,UnsupportedFormat):statuses.append(CommandStatus(command.name,False,b'reference rejected'))
-        else:statuses.append(CommandStatus(command.name,True))
-    report=ReportStatus(True,tuple(statuses))
+    control.consume(len(request)-len(parsed.pack))
+    p=control.limits.pack
+    limits=ReceiveLimits(transfer=control.limits,graph=PackWriteLimits(max_objects=p.max_objects,
+        max_object_bytes=p.max_object_bytes,max_bytes=p.max_delta_bytes))
+    policy=ReceivePolicy(allow_deletes=True,allow_non_fast_forwards=True,allow_tag_replacement=True)
+    try:result=receive(repo,commands,parsed.pack,policy=policy,limits=limits,_control=control)
+    except ReceiveRejected as error:result=error.result
+    statuses=tuple(CommandStatus(o.command.name,o.state is ReceiveState.ACCEPTED,
+        None if o.state is ReceiveState.ACCEPTED else o.reason or b'reference rejected') for o in result.outcomes)
+    report=ReportStatus(result.unpack_ok,statuses,None if result.unpack_ok else b'invalid pack or graph')
     wire=encode_report_status(report,commands,repo.object_format,limits=protocol_limits(control));control.consume(len(wire));return wire

@@ -14,18 +14,20 @@ import tempfile
 import gitdx
 from gitdx import (Blob, Commit, DirectRef, GitdxError, Index, InvalidIndex, ObjectFormat, ObjectId, PackFile, PackIndex, PushState,
                    PushUpdate, QualificationEvidence, RefConflict, Repository, SmartHTTPTransport, TransferLimits,
-                   UnsupportedFormat, capability_report, implementation_digest, runtime_toolchain, LocalTransport)
+                   UnsupportedFormat, capability_report, implementation_digest, runtime_toolchain, LocalTransport,
+                   PushCommand, ReceivePolicy)
 
 IDENTITY=b'Qualification <qualification@example.invalid> 1700000000 +0000'
 CHECKS=('native-objects','packed-read','delta-ofs','delta-ref','packed-refs','ref-cas',
         'write-after-gc','native-status','checkout','refusal-profiles','no-git-runtime',
         'diff-native','revision-native','ancestry-native','fetch-interop','fetch-v0','fetch-v1','fetch-v2',
         'push-codec','push-local','push-http','report-status-v1','report-status-v2','native-client-storage',
-        'native-index-pack','corruption-resource','index-v2','refusal-index-required','replacement-refusal')
+        'native-index-pack','corruption-resource','index-v2','refusal-index-required','replacement-refusal',
+        'receive-native','receive-policy','receive-fault','receive-no-git')
 CAPABILITIES=('objects.native','storage.loose','storage.pack-index-v2','storage.delta-ofs-ref',
               'refs.files-packed','worktree.index-stage-status','worktree.checkout','history.commit','config.local',
               'diff.trees-bytes','history.revisions','history.ancestry','transfer.fetch-local-http',
-              'protocol.push-records','transfer.push-local','transfer.push-http')
+              'protocol.push-records','transfer.push-local','transfer.push-http','receive.quarantine-policy')
 
 
 def git(path,*args,data=None):
@@ -139,7 +141,18 @@ def runtime(spec):
     repo.apply_checkout(repo.plan_checkout('main'))
     if repo.status() or (root/'qualified.bin').read_bytes()!=b'exact\0\xff\r\n$Id$':raise RuntimeError('post-gc write/status mismatch')
     transfers=runtime_transfers(repo,spec,new)
+    runtime_receive(repo,root.parent,ObjectId(str(new),format))
     print(json.dumps({'new':str(new),'checks':CHECKS,'transfers':transfers}))
+
+
+def runtime_receive(repo,root,new):
+    target=Repository.init(root/'receive-no-git.git',bare=True,object_format=repo.object_format)
+    command=PushCommand(b'refs/heads/main',None,new);pack=repo.pack((new,)).pack
+    denied=target.receive((command,),pack,policy=ReceivePolicy(ref_check=lambda view,c:b'policy refused'))
+    if denied.complete or target.refs.resolve().oid is not None:raise RuntimeError('receive policy failed to refuse')
+    result=target.receive((command,),pack,policy=ReceivePolicy())
+    if not result.complete or result.atomic or result.cleanup_pending:raise RuntimeError('no-Git receive did not complete')
+    if target.refs.resolve().oid!=new or target.objects.read(new)!=repo.objects.read(new):raise RuntimeError('no-Git receive object/ref mismatch')
 
 
 def runtime_transfers(repo,spec,new):
@@ -305,6 +318,10 @@ def qualify(args):
     # imported from the selected installation before adding the tests directory.
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests'))
     from test_http_transport import http_fixture
+    import unittest
+    import test_receive
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_receive))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('receive qualification failed or skipped')
     with tempfile.TemporaryDirectory() as tmp:
         root=Path(tmp)
         for format in ObjectFormat:

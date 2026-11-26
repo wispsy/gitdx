@@ -333,3 +333,26 @@ Later broad workstream/decision items must be split before implementation.
 | [DX-FIX-03](https://github.com/wispsy/gitdx/issues/47) | gitdx: Bound directory enumeration before sorting | 0.2 Local | DX-06 |
 | [DX-FIX-04](https://github.com/wispsy/gitdx/issues/51) | gitdx: Match the resolved branch to the captured HEAD | 0.2 Local | DX-07 |
 | [DX-FIX-05](https://github.com/wispsy/gitdx/issues/57) | gitdx: Refuse Windows reparse-point directory escapes | 0.2 Local | DX-03 |
+
+## DX-24 receive contract (2026-11-26)
+
+Expose a hosting-neutral receive API for explicit native-format PushCommand
+batches and complete non-thin pack bytes. Authentication remains outside Gitdx.
+Require an explicit policy, check bare/config/hook restrictions, bound incoming
+pack expansion, graph objects/edges/bytes, quarantine disk bytes and elapsed
+work, and validate all supplied object graphs and branch target kinds before
+publication. Run object policy in quarantine and ref policy both before object
+promotion and immediately before each expected-old ref update.
+
+Quarantine owns a private directory with an identity/receipt; foreign or changed
+storage must never be deleted or promoted. Publish verified immutable objects
+before refs. Ref outcomes distinguish accepted, rejected, not attempted and
+unknown publication after interruption. Cancellation, I/O failures and cleanup
+failure retain explicit progress. This first receiver uses single-ref CAS and
+does not advertise atomic multi-ref visibility. DX-25 adds coordinated backend
+transactions and recovery without promising atomic visibility to native readers.
+
+Qualify both hashes, native fsck/pack fixtures, graph/type/pack corruption, policy
+rejection, quotas, cancellation at publication boundaries, stale refs and owned
+cleanup. Include installed artifacts and a no-executable worker. Untrusted SHA-1
+hosting remains gated on DX-26; ordinary SHA-1 hashing is not collision detection.

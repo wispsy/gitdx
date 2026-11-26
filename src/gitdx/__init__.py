@@ -23,6 +23,9 @@ from .pack_writer import PackBundle, PackWriteLimits, reachable_objects, write_p
 from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, CheckoutPlan, CheckoutRecoveryRequired
 from .checkout_transaction import CheckoutResult
 from .quarantine import ObjectQuarantine, unpack_objects
+from .quarantine import QuarantineOwnershipError
+from .receive import (ReceiveInterrupted, ReceiveLimits, ReceiveOutcome, ReceivePolicy, ReceiveRejected,
+                      ReceiveResult, ReceiveState, ReceiveView, receive)
 from .transfers import (CloneIncomplete, FetchFailure, FetchInterrupted, FetchResult, FetchTransport, LocalTransport,
                         TransferCancelled, TransferControl, TransferError, TransferLimits, TransferTimeout, clone, fetch)
 from .http_transport import HTTPAuthorization, SmartHTTPTransport
@@ -56,6 +59,8 @@ __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPla
 __all__ += ["CheckoutResult"]
 __all__ += ["Config", "ConfigEntry", "RepositoryConfig", "parse_config", "parse_values", "read_config"]
 __all__ += ["ObjectQuarantine", "unpack_objects"]
+__all__ += ["QuarantineOwnershipError", "ReceiveInterrupted", "ReceiveLimits", "ReceiveOutcome", "ReceivePolicy",
+            "ReceiveRejected", "ReceiveResult", "ReceiveState", "ReceiveView", "receive"]
 __all__ += ["HTTPAuthorization", "SmartHTTPTransport"]
 __all__ += ["CapabilityState", "QualificationEvidence", "capability_report", "implementation_digest", "runtime_toolchain"]
 __all__ += ["PushOutcome", "PushResult", "PushState", "PushTransport", "PushUncertain", "PushUpdate", "push"]
