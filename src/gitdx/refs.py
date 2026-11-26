@@ -195,11 +195,15 @@ class FilesRefStore:
                 yield target, packed
 
     def _write(self, name: str, value: RefValue | None, expected: RefValue | None, reflog=None) -> RefUpdateResult:
+        operation = self.path/"operation-state";check_path(self.path, operation)
+        if operation.exists():raise UnsupportedFormat("worktree operation recovery is pending")
         pending=self.path/"checkout-state";check_path(self.path,pending)
         if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
         if reflog is not None and not isinstance(reflog, ReflogUpdate):raise TypeError("reflog must be a ReflogUpdate")
         self._profile()
         with self._mutation_locks(name) as (target, packed):
+            check_path(self.path, operation)
+            if operation.exists():raise UnsupportedFormat("worktree operation recovery is pending")
             check_path(self.path,pending)
             if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
             old = self.read(name)
