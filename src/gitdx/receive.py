@@ -15,6 +15,8 @@ from .pack_writer import PackWriteLimits
 from .push_protocol import PushCommand
 from .quarantine import ObjectQuarantine
 from .refs import DirectRef, RefConflict, RefLocked, RefUpdateResult
+from .ref_transaction import (RefChange, RefTransactionInterrupted, RefTransactionResult,
+                              require_no_ref_transaction)
 from .revisions import RevisionLimits
 from .transfers import TransferControl, TransferError, TransferLimits
 
@@ -71,6 +73,8 @@ class ReceiveResult:
     cleanup_pending: bool = False
     cleanup_error: str | None = None
     atomic: bool = False
+    coordinated: bool = False
+    ref_transaction: RefTransactionResult | None = None
 
     @property
     def complete(self):return self.unpack_ok and all(o.state is ReceiveState.ACCEPTED for o in self.outcomes)
@@ -159,7 +163,7 @@ def _ref_reason(repo,view,command,policy,control):
     return None
 
 
-def receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,_control=None):
+def receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,coordinated=False,atomic=False,_control=None):
     """Publish verified objects then explicit per-ref CAS updates; never atomic.
 
     Authentication belongs to the caller. Trusted policy callables must not
@@ -167,17 +171,20 @@ def receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,_control=Non
     behind a whole-batch rejection. No configured external hook is executed.
     """
     if not isinstance(policy,ReceivePolicy):raise TypeError('select an explicit ReceivePolicy')
+    if type(coordinated) is not bool or type(atomic) is not bool:raise TypeError('receive mode switches must be booleans')
+    if atomic:raise UnsupportedFormat('files refs cannot provide atomic receive visibility')
     limits=limits or ReceiveLimits()
     if not isinstance(limits,ReceiveLimits):raise TypeError('select ReceiveLimits')
     control=_control or TransferControl(limits.transfer,cancel)
-    receive_profile(repo,control);commands=_commands(commands,repo,limits.transfer.max_refs)
+    require_no_ref_transaction(repo.git_dir)
+    receive_profile(repo,control);commands=_commands(commands,repo,min(limits.transfer.max_refs,256) if coordinated else limits.transfer.max_refs)
     if not isinstance(pack,bytes):raise TypeError('receive pack must be immutable bytes')
     roots=tuple(c.new for c in commands if c.new is not None)
     if bool(roots)!=bool(pack):raise InvalidObject('pack presence differs from receive targets')
     control.consume(len(pack))
     outcomes=[ReceiveOutcome(c,ReceiveState.NOT_ATTEMPTED) for c in commands]
     incoming=ObjectQuarantine(repo,limits=limits.transfer.pack,check=control.check)
-    unpack_ok=False;error=None;rejected=False
+    unpack_ok=False;error=None;rejected=False;ref_transaction=None
     try:
         with incoming:
             if pack:
@@ -204,8 +211,28 @@ def receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,_control=Non
                 control.check();reason=_ref_reason(repo,view,command,policy,control)
                 if reason is None:allowed.append(i)
                 else:outcomes[i]=ReceiveOutcome(command,ReceiveState.REJECTED,reason)
+            if coordinated and len(allowed)!=len(commands):
+                for i in allowed:outcomes[i]=ReceiveOutcome(commands[i],ReceiveState.REJECTED,b'coordinated batch refused')
+                allowed=[]
             if allowed and pack:incoming.promote()
-            for i in allowed:
+            if coordinated and allowed:
+                def guard():
+                    for command in commands:
+                        if _ref_reason(repo,view,command,policy,control) is not None:raise RefConflict('receive ref policy changed')
+                changes=tuple(RefChange(c.name.decode('ascii'),c.new,c.old) for c in commands)
+                try:ref_transaction=repo.refs.transaction(changes,check=control.check,before_publish=guard)
+                except RefTransactionInterrupted as interrupted:
+                    ref_transaction=interrupted.result
+                    state=ReceiveState.ACCEPTED if ref_transaction.committed else ReceiveState.UNKNOWN
+                    receipts={r.name:r for r in ref_transaction.updates}
+                    outcomes=[ReceiveOutcome(c,state, None if ref_transaction.committed else b'ref recovery required',receipts.get(c.name.decode('ascii'))) for c in commands]
+                    raise
+                except (RefConflict,RefLocked,InvalidRef,UnsupportedFormat):
+                    outcomes=[ReceiveOutcome(c,ReceiveState.REJECTED,b'coordinated ref transaction rejected') for c in commands]
+                else:
+                    receipts={r.name:r for r in ref_transaction.updates}
+                    outcomes=[ReceiveOutcome(c,ReceiveState.ACCEPTED,receipt=receipts[c.name.decode('ascii')]) for c in commands]
+            for i in (() if coordinated else allowed):
                 command=commands[i];control.check()
                 reason=_ref_reason(repo,view,command,policy,control)
                 if reason is not None:
@@ -220,7 +247,7 @@ def receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,_control=Non
                 control.check()
     except BaseException as cause:error=cause
     result=ReceiveResult(tuple(outcomes),unpack_ok,len(incoming.received),incoming.promoted,
-                         incoming.cleanup_pending,incoming.cleanup_error)
+                         incoming.cleanup_pending,incoming.cleanup_error,coordinated=coordinated,ref_transaction=ref_transaction)
     if error is not None:
         if rejected:
             result=replace(result,outcomes=tuple(ReceiveOutcome(c,ReceiveState.REJECTED,b'invalid pack, graph or object policy') for c in commands))

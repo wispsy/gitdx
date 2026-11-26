@@ -28,6 +28,10 @@ explicit object/ref policy, complete graph validation and interruption outcomes.
 This trusted-storage API does not enable public hosting or change the published
 0.1.0a1 preview.
 
+[Coordinated ref transactions](docs/ref-transactions.md) validate every expected
+old value under deterministic locks, with explicit prepared/committed recovery.
+Native readers can observe intermediate values; atomic visibility is refused.
+
 [Configuration policy](docs/configuration.md) provides ordered Git values,
 quoting/continuations and explicitly confined include inspection.
 

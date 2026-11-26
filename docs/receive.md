@@ -72,7 +72,10 @@ rollback from an exception or retry an unknown outcome blindly. Promoted counts
 are completed write calls, including existing objects, not a new-object count;
 an interrupted write may have published one additional immutable object.
 
-This profile performs independent single-ref CAS. A stale/locked ref can be
+The default profile performs independent single-ref CAS. A stale/locked ref can be
 rejected while another is accepted. `atomic` is always false; local discovery
-does not advertise atomic. Coordinated files-ref recovery is the next backend
-task and still cannot promise atomic multi-ref visibility to native readers.
+does not advertise atomic. Select `coordinated=True` for
+[all-value files-ref CAS and explicit journal recovery](ref-transactions.md).
+`result.ref_transaction` retains its receipt, pending recovery and retired
+cleanup path. Coordinated mode still refuses `atomic=True` and cannot promise
+atomic multi-ref visibility to native readers.

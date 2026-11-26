@@ -195,11 +195,14 @@ class FilesRefStore:
                 yield target, packed
 
     def _write(self, name: str, value: RefValue | None, expected: RefValue | None, reflog=None) -> RefUpdateResult:
+        from .ref_transaction import require_no_ref_transaction
+        require_no_ref_transaction(self.path)
         pending=self.path/"checkout-state";check_path(self.path,pending)
         if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
         if reflog is not None and not isinstance(reflog, ReflogUpdate):raise TypeError("reflog must be a ReflogUpdate")
         self._profile()
         with self._mutation_locks(name) as (target, packed):
+            require_no_ref_transaction(self.path)
             check_path(self.path,pending)
             if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
             old = self.read(name)
@@ -254,13 +257,24 @@ class FilesRefStore:
         return self._write(name, None, DirectRef(expected), reflog)
 
     def repair_reflog(self, result: RefUpdateResult) -> None:
+        from .ref_transaction import require_no_ref_transaction
+        require_no_ref_transaction(self.path)
         receipt = result.reflog_receipt
         if receipt is None:raise InvalidRef("no safe append receipt; inspect the reflog manually")
         if receipt.name != result.name or receipt.new_oid.format != self.objects.format:
             raise InvalidRef("reflog receipt does not match the ref result")
         with self._mutation_locks(result.name):
+            require_no_ref_transaction(self.path)
             current = self.read(result.name)
             resolved = self.resolve(result.name).oid
             wanted = receipt.new_oid if any(receipt.new_oid.bytes) else None
             if current != result.new_value or resolved != wanted:raise RefConflict("ref moved since the append receipt")
             ReflogStore(self.path).repair(receipt)
+
+    def transaction(self, changes, *, atomic=False, check=None, before_publish=None):
+        from .ref_transaction import transaction
+        return transaction(self,changes,atomic=atomic,check=check,before_publish=before_publish)
+
+    def recover_transaction(self, *, check=None):
+        from .ref_transaction import recover_transaction
+        return recover_transaction(self,check=check)

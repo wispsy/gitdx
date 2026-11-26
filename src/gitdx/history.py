@@ -105,6 +105,8 @@ def write_tree(repo, index, limits):
 
 
 def create_commit(repo, *, author, committer, message, expected_head, parents=None, limits=None):
+    from .ref_transaction import require_no_ref_transaction
+    require_no_ref_transaction(repo.git_dir)
     limits = limits or HistoryLimits()
     validate_identity(author);validate_identity(committer)
     if not isinstance(message, bytes):raise TypeError("commit message must be bytes")
