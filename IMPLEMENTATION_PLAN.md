@@ -356,3 +356,25 @@ Qualify both hashes, native fsck/pack fixtures, graph/type/pack corruption, poli
 rejection, quotas, cancellation at publication boundaries, stale refs and owned
 cleanup. Include installed artifacts and a no-executable worker. Untrusted SHA-1
 hosting remains gated on DX-26; ordinary SHA-1 hashing is not collision detection.
+
+## DX-25 files-ref transaction contract (2026-11-26)
+
+Provide explicit bounded direct-ref changes with deterministic packed-refs and
+selected-ref locks. Validate every expected-old value, target kind, namespace and
+trusted publication guard before any ref changes. Persist a checksummed,
+repository-bound prepared journal with exact loose/packed before/after bytes.
+Publish updates, packed deletions and loose deletions while retaining all locks,
+then mark committed and retire the journal. Prepared interruption rolls back;
+committed interruption finishes cleanup. Recovery refuses unknown later bytes.
+
+Expose coordinated guarantees and explicit interrupted/cleanup receipts, while
+refusing atomic visibility requests before writes. Native readers ignore lock
+files and can observe intermediate values; native writers ignore the recovery
+journal, so an interrupted repository requires owner-controlled recovery before
+further mutation. Do not remove unknown lockfiles or overwrite later edits.
+
+Integrate an explicitly selected coordinated receive mode, keeping independent
+CAS as the default. Recheck policy under all ref locks; coordinated stale/policy
+preflight rejects the batch. Qualify competing writers, mixed native access,
+loose/packed deletion, every publication boundary, recovery refusal and installed
+empty-PATH operation in both hash formats.

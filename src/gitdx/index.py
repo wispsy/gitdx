@@ -250,6 +250,8 @@ class IndexTransaction:
         if self._used:
             raise RuntimeError("index transactions cannot be reused")
         self._used = True
+        from .ref_transaction import require_no_ref_transaction
+        require_no_ref_transaction(self.file.git_dir)
         pending = self.file.git_dir/"checkout-state"
         check_path(self.file.git_dir,pending)
         if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
@@ -262,6 +264,7 @@ class IndexTransaction:
         self._owns_lock = True
         self._stream = os.fdopen(fd, "wb")
         try:
+            require_no_ref_transaction(self.file.git_dir)
             check_path(self.file.git_dir,pending)
             if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
             self._index = self.file.read()
@@ -288,6 +291,8 @@ class IndexTransaction:
             stream.flush()
             os.fsync(stream.fileno())
         self.file._profile()
+        from .ref_transaction import require_no_ref_transaction
+        require_no_ref_transaction(self.file.git_dir)
         check_path(self.file.git_dir, self.file.path)
         os.replace(self.lock, self.file.path)
         self._owns_lock = False
