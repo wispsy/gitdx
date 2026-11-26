@@ -104,6 +104,8 @@ def _index_bytes(repo):
 
 
 def _profile(repo):
+    from .ref_transaction import require_no_ref_transaction
+    require_no_ref_transaction(repo.git_dir)
     if repo.bare:raise UnsupportedFormat("checkout requires a working tree")
     for name in ("checkout-state","operation-state","merge-state","MERGE_HEAD","CHERRY_PICK_HEAD","REVERT_HEAD","rebase-merge","rebase-apply","sequencer"):
         path = repo.git_dir/name;check_path(repo.git_dir,path)

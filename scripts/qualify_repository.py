@@ -15,20 +15,25 @@ import unittest
 import gitdx
 from gitdx import (Blob, Commit, DirectRef, GitdxError, Index, InvalidIndex, ObjectFormat, ObjectId, PackFile, PackIndex, PushState,
                    PushUpdate, QualificationEvidence, RefConflict, Repository, SmartHTTPTransport, TransferLimits,
-                   UnsupportedFormat, capability_report, implementation_digest, runtime_toolchain, LocalTransport)
+                   UnsupportedFormat, capability_report, implementation_digest, runtime_toolchain, LocalTransport,
+                   PushCommand, ReceivePolicy, RefChange)
 
 IDENTITY=b'Qualification <qualification@example.invalid> 1700000000 +0000'
-CHECKS=('native-objects','packed-read','delta-ofs','delta-ref','packed-refs','ref-cas',
-        'write-after-gc','native-status','checkout','refusal-profiles','no-git-runtime',
-        'diff-native','revision-native','ancestry-native','fetch-interop','fetch-v0','fetch-v1','fetch-v2',
-        'push-codec','push-local','push-http','report-status-v1','report-status-v2','native-client-storage',
-        'native-index-pack','corruption-resource','index-v2','refusal-index-required','replacement-refusal',
-        'merge-native','merge-conflicts','merge-recovery','merge-no-git',
-        'reset-native','restore-native','reset-restore-recovery','reset-restore-no-git')
-CAPABILITIES=('objects.native','storage.loose','storage.pack-index-v2','storage.delta-ofs-ref',
-              'refs.files-packed','worktree.index-stage-status','worktree.checkout','history.commit','config.local',
-              'diff.trees-bytes','history.revisions','history.ancestry','transfer.fetch-local-http',
-              'protocol.push-records','transfer.push-local','transfer.push-http','worktree.merge-two-parent','worktree.reset-restore')
+CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs', 'ref-cas', 'write-after-gc',
+ 'native-status', 'checkout', 'refusal-profiles', 'no-git-runtime', 'diff-native', 'revision-native',
+ 'ancestry-native', 'fetch-interop', 'fetch-v0', 'fetch-v1', 'fetch-v2', 'push-codec', 'push-local',
+ 'push-http', 'report-status-v1', 'report-status-v2', 'native-client-storage', 'native-index-pack',
+ 'corruption-resource', 'index-v2', 'refusal-index-required', 'replacement-refusal', 'merge-native',
+ 'merge-conflicts', 'merge-recovery', 'merge-no-git', 'reset-native', 'restore-native',
+ 'reset-restore-recovery', 'reset-restore-no-git', 'receive-native', 'receive-policy', 'receive-fault',
+ 'receive-no-git', 'refs-transaction-native', 'refs-transaction-fault', 'refs-transaction-contention',
+ 'refs-transaction-no-git')
+CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'storage.delta-ofs-ref',
+ 'refs.files-packed', 'worktree.index-stage-status', 'worktree.checkout', 'history.commit',
+ 'config.local', 'diff.trees-bytes', 'history.revisions', 'history.ancestry',
+ 'transfer.fetch-local-http', 'protocol.push-records', 'transfer.push-local', 'transfer.push-http',
+ 'worktree.merge-two-parent', 'worktree.reset-restore', 'receive.quarantine-policy',
+ 'refs.coordinated-multi-update')
 
 
 def git(path,*args,data=None):
@@ -144,6 +149,7 @@ def runtime(spec):
     runtime_merge(root.parent/'merge-profile',format)
     runtime_reset_restore(root.parent/'reset-profile',format)
     transfers=runtime_transfers(repo,spec,new)
+    runtime_receive(repo,root.parent,ObjectId(str(new),format))
     print(json.dumps({'new':str(new),'checks':CHECKS,'transfers':transfers}))
 
 
@@ -182,6 +188,20 @@ def runtime_reset_restore(path,format):
     repo.apply_restore(repo.plan_restore('file',source=old,staged=True,worktree=False))
     repo.apply_reset(repo.plan_reset(old,mode='mixed',expected_head=new,discard_staged=True))
     if file.read_bytes()!=b'new' or repo.refs.resolve().oid!=old:raise RuntimeError('no-Git mixed reset mismatch')
+
+
+def runtime_receive(repo,root,new):
+    target=Repository.init(root/'receive-no-git.git',bare=True,object_format=repo.object_format)
+    command=PushCommand(b'refs/heads/main',None,new);tag=PushCommand(b'refs/tags/current',None,new);pack=repo.pack((new,)).pack
+    denied=target.receive((command,),pack,policy=ReceivePolicy(ref_check=lambda view,c:b'policy refused'))
+    if denied.complete or target.refs.resolve().oid is not None:raise RuntimeError('receive policy failed to refuse')
+    result=target.receive((command,tag),pack,policy=ReceivePolicy(),coordinated=True)
+    if not result.complete or result.atomic or result.cleanup_pending:raise RuntimeError('no-Git receive did not complete')
+    if target.refs.resolve().oid!=new or target.objects.read(new)!=repo.objects.read(new):raise RuntimeError('no-Git receive object/ref mismatch')
+    if not result.coordinated or not result.ref_transaction.committed:raise RuntimeError('coordinated receive did not commit')
+    result=target.refs.transaction((RefChange('refs/tags/current',None,new),RefChange('refs/heads/main',new,new)))
+    if not result.committed or result.atomic or target.refs.read('refs/tags/current') is not None:
+        raise RuntimeError('no-Git ref transaction did not preserve its guarantees')
 
 
 def runtime_transfers(repo,spec,new):
@@ -353,6 +373,14 @@ def qualify(args):
     import test_reset_restore
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_reset_restore))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('reset/restore native/recovery qualification failed or skipped')
+
+
+    import test_receive
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_receive))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('receive qualification failed or skipped')
+    import test_ref_transaction
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_ref_transaction))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('ref transaction qualification failed or skipped')
     with tempfile.TemporaryDirectory() as tmp:
         root=Path(tmp)
         for format in ObjectFormat:
@@ -386,6 +414,8 @@ def main():
     if args.runtime:
         def forbidden(*args,**kwargs):raise RuntimeError('runtime attempted to execute an external helper')
         subprocess.run=forbidden
+        subprocess.Popen=forbidden
+        os.system=forbidden
         spec=json.loads(Path(args.runtime).read_text())
         if 'inspect' in spec:inspect_native(spec)
         else:runtime(spec)

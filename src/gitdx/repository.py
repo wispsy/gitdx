@@ -143,6 +143,10 @@ class Repository:
         from .pack_writer import write_pack
         return write_pack(self.objects, roots, limits=limits)
 
+    def receive(self, commands, pack=b'', **options):
+        from .receive import receive
+        return receive(self,commands,pack,**options)
+
     def plan_checkout(self, destination, *, unborn=False, overwrite_tracked=False, limits=None):
         from .checkout import plan_checkout
         return plan_checkout(self, destination, unborn=unborn, overwrite_tracked=overwrite_tracked, limits=limits)

@@ -12,6 +12,8 @@ from .index import Index, IndexEntry, IndexExtension, IndexFile, IndexLimits, In
 from .packed_refs import PackedRef, PackedRefs
 from .reflog import ReflogReceipt, ReflogUpdate
 from .refs import RefUpdateResult
+from .ref_transaction import (RefChange, RefRecoveryRequired, RefTransactionInterrupted,
+                              RefTransactionResult, RefTransactionState)
 from .pack import InvalidPack, PackFile, PackIndex, PackIndexEntry, PackLimits, RepositoryObjectStore
 from .working_tree import IgnoredPath, StatusEntry, WorkingTree, WorktreeLimits
 from .delta import apply_delta
@@ -26,6 +28,9 @@ from .pack_writer import PackBundle, PackWriteLimits, reachable_objects, write_p
 from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, CheckoutPlan, CheckoutRecoveryRequired
 from .checkout_transaction import CheckoutResult
 from .quarantine import ObjectQuarantine, unpack_objects
+from .quarantine import QuarantineOwnershipError
+from .receive import (ReceiveInterrupted, ReceiveLimits, ReceiveOutcome, ReceivePolicy, ReceiveRejected,
+                      ReceiveResult, ReceiveState, ReceiveView, receive)
 from .transfers import (CloneIncomplete, FetchFailure, FetchInterrupted, FetchResult, FetchTransport, LocalTransport,
                         TransferCancelled, TransferControl, TransferError, TransferLimits, TransferTimeout, clone, fetch)
 from .http_transport import HTTPAuthorization, SmartHTTPTransport
@@ -47,6 +52,7 @@ __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFor
            "DirectRef", "FilesRefStore", "RefConflict", "RefLocked", "RefStore", "ResolvedRef", "SymbolicRef"]
 __all__ += ["Index", "IndexEntry", "IndexExtension", "IndexFile", "IndexLimits", "IndexLocked", "IndexStat", "InvalidIndex"]
 __all__ += ["PackedRef", "PackedRefs", "ReflogReceipt", "ReflogUpdate", "RefUpdateResult"]
+__all__ += ["RefChange", "RefRecoveryRequired", "RefTransactionInterrupted", "RefTransactionResult", "RefTransactionState"]
 __all__ += ["InvalidPack", "PackFile", "PackIndex", "PackIndexEntry", "PackLimits", "RepositoryObjectStore"]
 __all__ += ["IgnoredPath", "StatusEntry", "WorkingTree", "WorktreeLimits"]
 __all__ += ["apply_delta"]
@@ -62,6 +68,8 @@ __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPla
 __all__ += ["CheckoutResult"]
 __all__ += ["Config", "ConfigEntry", "RepositoryConfig", "parse_config", "parse_values", "read_config"]
 __all__ += ["ObjectQuarantine", "unpack_objects"]
+__all__ += ["QuarantineOwnershipError", "ReceiveInterrupted", "ReceiveLimits", "ReceiveOutcome", "ReceivePolicy",
+            "ReceiveRejected", "ReceiveResult", "ReceiveState", "ReceiveView", "receive"]
 __all__ += ["HTTPAuthorization", "SmartHTTPTransport"]
 __all__ += ["CapabilityState", "QualificationEvidence", "capability_report", "implementation_digest", "runtime_toolchain"]
 __all__ += ["PushOutcome", "PushResult", "PushState", "PushTransport", "PushUncertain", "PushUpdate", "push"]

@@ -56,6 +56,8 @@ def _locks(repo, source_name, target_name, *, index=False):
     with ExitStack() as stack:
         if index:stack.enter_context(refs._lock(repo.git_dir/"index"))
         stack.enter_context(refs._lock(repo.git_dir/"packed-refs"))
+        from .ref_transaction import require_no_ref_transaction
+        require_no_ref_transaction(repo.git_dir)
         stack.enter_context(refs._lock(repo.git_dir/"HEAD"))
         for name in sorted({source_name,target_name}-{"HEAD"}):stack.enter_context(refs._lock(refs._path(name)))
         refs._profile()

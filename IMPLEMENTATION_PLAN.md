@@ -334,9 +334,9 @@ Later broad workstream/decision items must be split before implementation.
 | [DX-FIX-04](https://github.com/wispsy/gitdx/issues/51) | gitdx: Match the resolved branch to the captured HEAD | 0.2 Local | DX-07 |
 | [DX-FIX-05](https://github.com/wispsy/gitdx/issues/57) | gitdx: Refuse Windows reparse-point directory escapes | 0.2 Local | DX-03 |
 
-## Current history and receive batch
+## History and receive batch (2026-11-26)
 
-Continue DX-16, its dependent DX-17, independent CAT-05, then DX-24 and DX-25.
+Batch scope: DX-16, its dependent DX-17, independent CAT-05, then DX-24 and DX-25.
 Each owning task receives a focused PR; dependent engine PRs stack and merge
 into their parent before the parent is squash-merged to main.
 
@@ -356,3 +356,48 @@ adds durable rules without making the catalog authoritative for branch tips.
 DX-24/25 expose bounded quarantine and coordinated files-ref outcomes without
 advertising atomic native-reader visibility. DX-26 remains an owner policy gate;
 a concrete SHA-1 ingestion proposal must precede that decision.
+
+## DX-24 receive contract (2026-11-26)
+
+Expose a hosting-neutral receive API for explicit native-format PushCommand
+batches and complete non-thin pack bytes. Authentication remains outside Gitdx.
+Require an explicit policy, check bare/config/hook restrictions, bound incoming
+pack expansion, graph objects/edges/bytes, quarantine disk bytes and elapsed
+work, and validate all supplied object graphs and branch target kinds before
+publication. Run object policy in quarantine and ref policy both before object
+promotion and immediately before each expected-old ref update.
+
+Quarantine owns a private directory with an identity/receipt; foreign or changed
+storage must never be deleted or promoted. Publish verified immutable objects
+before refs. Ref outcomes distinguish accepted, rejected, not attempted and
+unknown publication after interruption. Cancellation, I/O failures and cleanup
+failure retain explicit progress. This first receiver uses single-ref CAS and
+does not advertise atomic multi-ref visibility. DX-25 adds coordinated backend
+transactions and recovery without promising atomic visibility to native readers.
+
+Qualify both hashes, native fsck/pack fixtures, graph/type/pack corruption, policy
+rejection, quotas, cancellation at publication boundaries, stale refs and owned
+cleanup. Include installed artifacts and a no-executable worker. Untrusted SHA-1
+hosting remains gated on DX-26; ordinary SHA-1 hashing is not collision detection.
+
+## DX-25 files-ref transaction contract (2026-11-26)
+
+Provide explicit bounded direct-ref changes with deterministic packed-refs and
+selected-ref locks. Validate every expected-old value, target kind, namespace and
+trusted publication guard before any ref changes. Persist a checksummed,
+repository-bound prepared journal with exact loose/packed before/after bytes.
+Publish updates, packed deletions and loose deletions while retaining all locks,
+then mark committed and retire the journal. Prepared interruption rolls back;
+committed interruption finishes cleanup. Recovery refuses unknown later bytes.
+
+Expose coordinated guarantees and explicit interrupted/cleanup receipts, while
+refusing atomic visibility requests before writes. Native readers ignore lock
+files and can observe intermediate values; native writers ignore the recovery
+journal, so an interrupted repository requires owner-controlled recovery before
+further mutation. Do not remove unknown lockfiles or overwrite later edits.
+
+Integrate an explicitly selected coordinated receive mode, keeping independent
+CAS as the default. Recheck policy under all ref locks; coordinated stale/policy
+preflight rejects the batch. Qualify competing writers, mixed native access,
+loose/packed deletion, every publication boundary, recovery refusal and installed
+empty-PATH operation in both hash formats.

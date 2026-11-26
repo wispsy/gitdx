@@ -61,6 +61,20 @@ index extensions and a corrupt index checksum must refuse without file/mode
 changes. Graft and packed replacement history are refused by revision queries.
 An empty/default capability report never acquires these test claims implicitly.
 
+The receive profile runs native-pack, policy, quota, ownership and interruption
+fixtures against the selected source/wheel/sdist import. A separate empty-PATH
+worker refuses a policy proposal, then receives a complete graph and verifies
+its objects and expected-old ref without an executable. It does not qualify
+public server authentication or SHA-1 collision detection.
+
+Files-ref transaction qualification covers deterministic locking, complete
+expected-old validation, competing writers, loose/packed deletion, faults at
+each publication boundary, commit-marker recovery, corrupt/changed journal
+refusal and a real process exit. Native readers must demonstrate intermediate
+visibility and native selected-ref writers must fail on owned locks. The
+empty-PATH worker executes coordinated receive and a second ref transaction;
+atomic visibility remains unsupported.
+
 | Profile | Supported scope exercised | Explicitly refused/separate scope |
 | --- | --- | --- |
 | Repository/storage | Same-format SHA-1 and SHA-256, files/packed refs, index v2, native gc, indexed REF/OFS deltas, native-written and Gitdx-written objects | Alternates, shallow/promisor/filter metadata, linked worktrees/commondir, unknown required formats, reftable |

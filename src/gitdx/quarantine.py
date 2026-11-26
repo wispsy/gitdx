@@ -3,15 +3,17 @@
 from collections import defaultdict, deque
 from dataclasses import dataclass
 import hashlib
+import os
 from pathlib import Path
 import shutil
 import struct
 import tempfile
+import uuid
 import zlib
 
 from .delta import DeltaBudget, _apply
-from .errors import UnsupportedFormat
-from .filesystem import check_path
+from .errors import GitdxError, UnsupportedFormat
+from .filesystem import check_path, read_file
 from .object_store import LooseObjectStore, MissingObject, ObjectLimitExceeded, StoreLimits
 from .objects import ObjectFormat, RawObject, parse_object
 from .pack import InvalidPack, PackLimits
@@ -100,48 +102,107 @@ class ObjectQuarantine:
 
     def __init__(self, repo, *, limits=None, check=None):
         self.repo=repo;self.format=repo.object_format;self.limits=limits or PackLimits()
-        self.check=check or (lambda:None);self.path=None;self.objects=None;self.received=();self.validated=None;self._received=False
+        self.check=check or (lambda:None);self._path=None;self._root=repo.objects.path
+        self.objects=None;self._received_objects=();self._validated=None;self._received=False
+        self._closed=False;self._identity=None;self._root_identity=None;self._receipt=uuid.uuid4().bytes
+        self.cleanup_error=None;self.cleanup_pending=False;self.promoted=0;self.staged_bytes=0;self._cleaned=False
+
+    @property
+    def path(self):return self._path
+
+    @property
+    def received(self):return self._received_objects
+
+    @property
+    def validated(self):return self._validated
+
+    def _owned(self):
+        if self.path is None or self.repo.objects.path!=self._root or self.objects.path!=self.path:
+            raise QuarantineOwnershipError('quarantine storage identity changed')
+        check_path(self._root,self.path)
+        root_info=self._root.stat()
+        if (root_info.st_dev,root_info.st_ino)!=self._root_identity:
+            raise QuarantineOwnershipError('quarantine root identity changed')
+        info=self.path.stat()
+        if (info.st_dev,info.st_ino)!=self._identity or read_file(self.path,self.path/'owner',32)!=self._receipt:
+            raise QuarantineOwnershipError('quarantine ownership receipt changed')
+
+    def _active(self):
+        if self._closed:raise ValueError('quarantine is closed')
+        self._owned();self.check()
 
     def __enter__(self):
         if self.path is not None:raise ValueError('quarantine cannot be reused')
-        root=self.repo.objects.path;check_path(root,root)
-        self.path=Path(tempfile.mkdtemp(prefix='incoming-',dir=root))
+        if self._closed:raise ValueError('quarantine is closed')
+        root=self._root;check_path(root,root)
+        info=root.stat();self._root_identity=(info.st_dev,info.st_ino)
+        self._path=Path(tempfile.mkdtemp(prefix='incoming-',dir=root))
+        info=self.path.stat();self._identity=(info.st_dev,info.st_ino)
         self.objects=LooseObjectStore(self.path,self.format,limits=StoreLimits(
             max_object_bytes=self.limits.max_object_bytes,max_compressed_bytes=self.limits.max_compressed_object_bytes))
+        try:
+            with (self.path/'owner').open('xb') as stream:
+                stream.write(self._receipt);stream.flush();os.fsync(stream.fileno())
+            self.staged_bytes=len(self._receipt)
+        except BaseException:
+            self.cleanup_pending=True;self._closed=True
+            raise
         return self
 
     def __exit__(self,*args):
-        if self.path is not None:
-            try:
-                check_path(self.repo.objects.path,self.path);shutil.rmtree(self.path)
-            except OSError:pass  # Interrupted cleanup leaves only an unreferenced private directory.
+        self.cleanup()
+
+    def cleanup(self):
+        """Remove only this instance's owned directory; report retained storage."""
+        self._closed=True
+        if self.path is None or self._cleaned:return True
+        try:
+            self._owned();shutil.rmtree(self.path)
+        except (OSError,GitdxError) as error:
+            self.cleanup_error=type(error).__name__;self.cleanup_pending=True
+            return False
+        self.cleanup_error=None;self.cleanup_pending=False;self._cleaned=True
+        return True
 
     def read(self,oid):
+        self._active()
         try:return self.objects.read(oid)
         except MissingObject:return self.repo.objects.read(oid)
 
-    def receive(self,data):
+    def receive(self,data,*,max_storage_bytes=None):
+        self._active()
+        if max_storage_bytes is not None and (type(max_storage_bytes) is not int or max_storage_bytes<=0):
+            raise ValueError('select a positive quarantine storage byte limit')
         if self._received:raise ValueError('quarantine already received a pack')
         self._received=True
-        self.validated=None
-        self.received=unpack_objects(data,self.format,limits=self.limits,check=self.check)
+        self._validated=None
+        self._received_objects=unpack_objects(data,self.format,limits=self.limits,check=self.check)
         for oid,raw in self.received:
-            self.check();self.objects.write(raw)
+            self._active();self.objects.write(raw)
+            self.staged_bytes+=(self.path/oid.hex[:2]/oid.hex[2:]).stat().st_size
+            if max_storage_bytes is not None and self.staged_bytes>max_storage_bytes:
+                raise ObjectLimitExceeded('quarantine storage byte limit exceeded')
 
-    def validate(self,roots):
-        self.validated=None
-        self.check()
-        limits=PackWriteLimits(max_objects=self.limits.max_objects,max_object_bytes=self.limits.max_object_bytes,
-                              max_bytes=self.limits.max_delta_bytes)
+    def validate(self,roots,*,limits=None):
+        self._validated=None
+        self._active()
+        if not self._received:raise ValueError('receive a pack before validating quarantine')
+        limits=limits or PackWriteLimits(max_objects=self.limits.max_objects,max_object_bytes=self.limits.max_object_bytes,
+                                        max_bytes=self.limits.max_delta_bytes)
         outer=self
         class CheckedStore:
             format=outer.format
             def read(self,oid):outer.check();return outer.read(oid)
-        self.validated=reachable_objects(CheckedStore(),roots,limits=limits)
+        self._validated=reachable_objects(CheckedStore(),roots,limits=limits)
         self.check();return self.validated
 
     def promote(self):
+        self._active()
         if self.validated is None:raise ValueError('validate quarantine roots before publication')
         for oid,raw in self.validated:
-            self.check();self.repo.objects.write(raw)
+            self._active();self.repo.objects.write(raw);self.promoted+=1
         self.check()
+
+
+class QuarantineOwnershipError(GitdxError):
+    """A private staging directory no longer belongs to this intake instance."""
