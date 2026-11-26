@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import unittest
 
 import gitdx
 from gitdx import (Blob, Commit, DirectRef, GitdxError, Index, InvalidIndex, ObjectFormat, ObjectId, PackFile, PackIndex, PushState,
@@ -21,11 +22,12 @@ CHECKS=('native-objects','packed-read','delta-ofs','delta-ref','packed-refs','re
         'write-after-gc','native-status','checkout','refusal-profiles','no-git-runtime',
         'diff-native','revision-native','ancestry-native','fetch-interop','fetch-v0','fetch-v1','fetch-v2',
         'push-codec','push-local','push-http','report-status-v1','report-status-v2','native-client-storage',
-        'native-index-pack','corruption-resource','index-v2','refusal-index-required','replacement-refusal')
+        'native-index-pack','corruption-resource','index-v2','refusal-index-required','replacement-refusal',
+        'merge-native','merge-conflicts','merge-recovery','merge-no-git')
 CAPABILITIES=('objects.native','storage.loose','storage.pack-index-v2','storage.delta-ofs-ref',
               'refs.files-packed','worktree.index-stage-status','worktree.checkout','history.commit','config.local',
               'diff.trees-bytes','history.revisions','history.ancestry','transfer.fetch-local-http',
-              'protocol.push-records','transfer.push-local','transfer.push-http')
+              'protocol.push-records','transfer.push-local','transfer.push-http','worktree.merge-two-parent')
 
 
 def git(path,*args,data=None):
@@ -138,8 +140,28 @@ def runtime(spec):
     if (root/'qualified.bin').exists() or repo.refs.resolve().oid!=ObjectId(spec['old'],format):raise RuntimeError('packed checkout mismatch')
     repo.apply_checkout(repo.plan_checkout('main'))
     if repo.status() or (root/'qualified.bin').read_bytes()!=b'exact\0\xff\r\n$Id$':raise RuntimeError('post-gc write/status mismatch')
+    runtime_merge(root.parent/'merge-profile',format)
     transfers=runtime_transfers(repo,spec,new)
     print(json.dumps({'new':str(new),'checks':CHECKS,'transfers':transfers}))
+
+
+def runtime_merge(path,format):
+    """The same merge implementation must run with Git absent from PATH."""
+    repo=Repository.init(path,object_format=format)
+    file=path/'file';base=b'one\ntwo\nthree\nfour\nfive\n';file.write_bytes(base);repo.add('file')
+    original=repo.commit(author=IDENTITY,committer=IDENTITY,message=b'base',expected_head=None)
+    repo.refs.update('refs/heads/side',original,expected=None)
+    file.write_bytes(base.replace(b'one',b'OURS'));repo.add('file')
+    ours=repo.commit(author=IDENTITY,committer=IDENTITY,message=b'ours',expected_head=original)
+    repo.apply_checkout(repo.plan_checkout('side'))
+    file.write_bytes(base.replace(b'five',b'THEIRS'));repo.add('file')
+    theirs=repo.commit(author=IDENTITY,committer=IDENTITY,message=b'theirs',expected_head=original)
+    repo.apply_checkout(repo.plan_checkout('main'))
+    if repo.apply_merge(repo.plan_merge('side')).state!='ready':raise RuntimeError('no-Git merge did not prepare')
+    oid=repo.finish_merge(author=IDENTITY,committer=IDENTITY,message=b'merge',expected_head=ours,expected_other=theirs,resolved=True)
+    if Commit.from_bytes(repo.objects.read(oid).data,format).parents!=(ours,theirs) or repo.status():
+        raise RuntimeError('no-Git merge publication mismatch')
+    if file.read_bytes()!=base.replace(b'one',b'OURS').replace(b'five',b'THEIRS'):raise RuntimeError('no-Git merge content mismatch')
 
 
 def runtime_transfers(repo,spec,new):
@@ -305,6 +327,9 @@ def qualify(args):
     # imported from the selected installation before adding the tests directory.
     sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'tests'))
     from test_http_transport import http_fixture
+    import test_merge
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_merge))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('merge native/conflict/recovery qualification failed or skipped')
     with tempfile.TemporaryDirectory() as tmp:
         root=Path(tmp)
         for format in ObjectFormat:

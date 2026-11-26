@@ -88,3 +88,15 @@ Each source/wheel/sdist record names exactly the fixture-qualified scopes; other
 implemented features remain `supported`. Reports are uploaded as CI artifacts
 for 14 days, with the source revision and exact toolchains. This publishes test
 evidence only. It does not publish packages or authorize a release.
+
+
+## Two-parent merge qualification
+
+Current source adds `worktree.merge-two-parent`, selected only with
+`merge-native`, `merge-conflicts`, `merge-recovery` and `merge-no-git`. Each
+source/wheel/sdist qualification now includes 33 checks across 17 selected
+scopes. The native/conflict/recovery suite runs against the selected installed
+module before a separate no-Git worker exercises a two-parent merge for each
+object format. The supported finite merge profile is documented in
+[merging.md](merging.md); this does not certify native alignment heuristics,
+recursive bases or hostile filesystem replacement.

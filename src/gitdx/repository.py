@@ -87,6 +87,30 @@ class Repository:
         from .ancestry import merge_bases
         return merge_bases(self, left, right, limits=limits)
 
+    def plan_merge(self, revision, *, base=None, limits=None):
+        from .merge import plan_merge
+        return plan_merge(self,revision,base=base,limits=limits)
+
+    def apply_merge(self, plan):
+        from .merge import apply_merge
+        return apply_merge(self,plan)
+
+    def finish_merge(self, **options):
+        from .merge import finish_merge
+        return finish_merge(self,**options)
+
+    def plan_abort_merge(self, *, discard_tracked=False):
+        from .merge import plan_abort_merge
+        return plan_abort_merge(self,discard_tracked=discard_tracked)
+
+    def abort_merge(self, plan):
+        from .merge import abort_merge
+        return abort_merge(self,plan)
+
+    def recover_merge(self):
+        from .merge import recover_merge
+        return recover_merge(self)
+
     def branches(self, *, limits=None):
         from .history import list_refs
         return list_refs(self, "refs/heads/", limits=limits)

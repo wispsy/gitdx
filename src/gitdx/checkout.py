@@ -105,10 +105,10 @@ def _index_bytes(repo):
 
 def _profile(repo):
     if repo.bare:raise UnsupportedFormat("checkout requires a working tree")
-    for name in ("checkout-state","MERGE_HEAD","CHERRY_PICK_HEAD","REVERT_HEAD","rebase-merge","rebase-apply","sequencer"):
+    for name in ("checkout-state","operation-state","merge-state","MERGE_HEAD","CHERRY_PICK_HEAD","REVERT_HEAD","rebase-merge","rebase-apply","sequencer"):
         path = repo.git_dir/name;check_path(repo.git_dir,path)
         if path.exists():
-            if name=="checkout-state":raise CheckoutRecoveryRequired("checkout recovery is pending")
+            if name in ("checkout-state","operation-state"):raise CheckoutRecoveryRequired("worktree recovery is pending")
             raise UnsupportedFormat("finish the existing repository operation before checkout")
 
 
