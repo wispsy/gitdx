@@ -83,7 +83,7 @@ def _save(root, receipt):
     replace_file(root,root/"receipt.json",data)
 
 
-def _prepare(repo, plan, new_head):
+def _prepare(repo, plan, new_head, *, state_name="checkout-state", operation=None):
     temporary = Path(tempfile.mkdtemp(prefix="tmp_checkout_",dir=repo.git_dir))
     try:
         receipt = {"version":1,"format":repo.object_format.value,"token":uuid.uuid4().hex,"phase":"prepared",
@@ -92,6 +92,8 @@ def _prepare(repo, plan, new_head):
                    "config":hashlib.sha256(plan.config).hexdigest(),"limits":{n:getattr(plan.limits,n) for n in plan.limits.__slots__},"paths":[]}
         receipt["index_before"] = _write_payload(temporary,"index-before",plan.old_index) if plan.old_index is not None else None
         receipt["index_after"] = _write_payload(temporary,"index-after",plan.new_index)
+        if operation is not None:
+            receipt["operation"] = _write_payload(temporary,"operation",operation)
         before,after = dict(plan.before),dict(plan.after);total = len(plan.old_index or b"")+len(plan.new_index)
         for i,change in enumerate(plan.changes):
             record = {"path":change.path.hex()}
@@ -104,7 +106,7 @@ def _prepare(repo, plan, new_head):
                     record[side] = {"mode":value.mode,"permissions":value.permissions,"data":_write_payload(temporary,f"p{i}-{label}",value.data)}
             receipt["paths"].append(record)
         _save(temporary,receipt)
-        state = repo.git_dir/"checkout-state"
+        state = repo.git_dir/state_name
         if state.exists():raise CheckoutRecoveryRequired("checkout recovery is pending")
         os.rename(temporary,state)
         return receipt
@@ -168,9 +170,10 @@ def _install(repo, before, after, desired, limits):
     _validate_states(repo,before,after,limits,exact=desired)
 
 
-def _complete(repo, receipt):
-    state=repo.git_dir/"checkout-state"
+def _complete(repo, receipt, *, state_name="checkout-state"):
+    state=repo.git_dir/state_name
     allowed={"receipt.json",receipt["index_after"]["file"]}
+    if "operation" in receipt:allowed.add(receipt["operation"]["file"])
     if receipt["index_before"] is not None:allowed.add(receipt["index_before"]["file"])
     for record in receipt["paths"]:
         for side in ("before","after"):
@@ -209,8 +212,8 @@ def apply_checkout(repo, plan):
             except Exception as error:raise CheckoutRecoveryRequired("checkout interrupted; explicit recovery is required") from error
 
 
-def _load(repo):
-    state=repo.git_dir/"checkout-state";check_path(repo.git_dir,state)
+def _load(repo, *, state_name="checkout-state"):
+    state=repo.git_dir/state_name;check_path(repo.git_dir,state)
     def unique(pairs):
         result={}
         for key,value in pairs:
@@ -223,7 +226,7 @@ def _load(repo):
     def payload(record):
         nonlocal total
         name=record["file"];size=record["size"]
-        if not re.fullmatch(r"(?:index-(?:before|after)|p[0-9]{1,10}-[ab])",name) or name in files or type(size) is not int or not 0<=size<=MAX_JOURNAL_BYTES:raise ValueError("invalid checkout payload")
+        if not re.fullmatch(r"(?:operation|index-(?:before|after)|p[0-9]{1,10}-[ab])",name) or name in files or type(size) is not int or not 0<=size<=MAX_JOURNAL_BYTES:raise ValueError("invalid checkout payload")
         total+=size
         if total>MAX_JOURNAL_BYTES:raise ValueError("oversized checkout journal")
         files.add(name);data=read_file(state,state/name,size)
@@ -246,6 +249,7 @@ def _load(repo):
                 values[path]=FileValue(mode,data,permissions)
     old_index=payload(receipt["index_before"]) if receipt["index_before"] is not None else None
     new_index=payload(receipt["index_after"])
+    if "operation" in receipt:payload(receipt["operation"])
     for data in (old_index,new_index):
         if data is not None:Index.from_bytes(data,repo.object_format)
     for name in ("source_name","target_name"):

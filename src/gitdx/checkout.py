@@ -107,10 +107,10 @@ def _profile(repo):
     from .ref_transaction import require_no_ref_transaction
     require_no_ref_transaction(repo.git_dir)
     if repo.bare:raise UnsupportedFormat("checkout requires a working tree")
-    for name in ("checkout-state","MERGE_HEAD","CHERRY_PICK_HEAD","REVERT_HEAD","rebase-merge","rebase-apply","sequencer"):
+    for name in ("checkout-state","operation-state","merge-state","MERGE_HEAD","CHERRY_PICK_HEAD","REVERT_HEAD","rebase-merge","rebase-apply","sequencer"):
         path = repo.git_dir/name;check_path(repo.git_dir,path)
         if path.exists():
-            if name=="checkout-state":raise CheckoutRecoveryRequired("checkout recovery is pending")
+            if name in ("checkout-state","operation-state"):raise CheckoutRecoveryRequired("worktree recovery is pending")
             raise UnsupportedFormat("finish the existing repository operation before checkout")
 
 
@@ -180,7 +180,13 @@ def _value_id(value, format):
 
 
 def plan_checkout(repo, destination, *, unborn=False, overwrite_tracked=False, limits=None):
-    limits = limits or CheckoutLimits();_profile(repo)
+    _profile(repo)
+    return _plan_checkout(repo,destination,unborn=unborn,overwrite_tracked=overwrite_tracked,limits=limits)
+
+
+def _plan_checkout(repo, destination, *, unborn=False, overwrite_tracked=False, limits=None, selectors=None):
+    """Shared path planner; operation callers validate their own state boundary."""
+    limits = limits or CheckoutLimits()
     if type(unborn) is not bool or type(overwrite_tracked) is not bool:raise TypeError("checkout policies must be explicit booleans")
     budget = _Budget(limits)
     work = WorkingTree(repo,limits=WorktreeLimits(limits.max_paths,limits.max_file_bytes,limits.max_bytes))
@@ -207,6 +213,12 @@ def plan_checkout(repo, destination, *, unborn=False, overwrite_tracked=False, l
     if any(e.stage or e.mode==0o160000 for e in index.entries):raise UnsupportedFormat("unmerged/submodule indexes cannot be checked out")
     current = _tree(repo,source.oid,limits,budget);wanted = _tree(repo,target,limits,budget)
     indexed = {e.path:(e.oid,e.mode) for e in index.entries}
+    if selectors is not None:
+        selectors=frozenset(selectors)
+        selected=lambda path:b"" in selectors or path in selectors or bool(_parents(path)&selectors)
+        current={p:v for p,v in current.items() if selected(p)}
+        wanted={p:v for p,v in wanted.items() if selected(p)}
+        indexed={p:v for p,v in indexed.items() if selected(p)}
     if not overwrite_tracked and indexed!=current:raise CheckoutConflict("staged changes require explicit tracked overwrite")
     tracked = set(current)|set(indexed);nodes = work._paths(index,force=True)
     names = {_key(path):path for path in nodes}

@@ -107,6 +107,9 @@ def write_tree(repo, index, limits):
 def create_commit(repo, *, author, committer, message, expected_head, parents=None, limits=None):
     from .ref_transaction import require_no_ref_transaction
     require_no_ref_transaction(repo.git_dir)
+    for name in ("checkout-state", "operation-state", "merge-state", "MERGE_HEAD"):
+        pending = repo.git_dir/name;check_path(repo.git_dir, pending)
+        if pending.exists():raise UnsupportedFormat("finish or recover the active worktree operation before committing")
     limits = limits or HistoryLimits()
     validate_identity(author);validate_identity(committer)
     if not isinstance(message, bytes):raise TypeError("commit message must be bytes")

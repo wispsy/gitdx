@@ -334,6 +334,29 @@ Later broad workstream/decision items must be split before implementation.
 | [DX-FIX-04](https://github.com/wispsy/gitdx/issues/51) | gitdx: Match the resolved branch to the captured HEAD | 0.2 Local | DX-07 |
 | [DX-FIX-05](https://github.com/wispsy/gitdx/issues/57) | gitdx: Refuse Windows reparse-point directory escapes | 0.2 Local | DX-03 |
 
+## History and receive batch (2026-11-26)
+
+Batch scope: DX-16, its dependent DX-17, independent CAT-05, then DX-24 and DX-25.
+Each owning task receives a focused PR; dependent engine PRs stack and merge
+into their parent before the parent is squash-merged to main.
+
+DX-16 selects explicit two-parent, no-fast-forward merges with a unique or
+explicitly selected best base. Immutable plans contain byte/path/mode changes,
+conflict stages and bounded deterministic text merges. Binary, type and
+directory/file conflicts retain their stages and require explicit resolution.
+Planning writes nothing. Apply protects staged/working/untracked content; a
+shared worktree journal reuses checkout path installation and recovery helpers.
+Merge completion requires explicit resolved state and expected heads, with
+recoverable publication/abort. Automatic rename detection, recursive virtual
+bases, octopus merges and external drivers remain refused or separately scoped.
+
+DX-17 reuses the same journal for independently previewed ref/index/worktree
+effects and explicit tracked overwrite. CAT-05 uses published ancestry APIs and
+adds durable rules without making the catalog authoritative for branch tips.
+DX-24/25 expose bounded quarantine and coordinated files-ref outcomes without
+advertising atomic native-reader visibility. DX-26 remains an owner policy gate;
+a concrete SHA-1 ingestion proposal must precede that decision.
+
 ## DX-24 receive contract (2026-11-26)
 
 Expose a hosting-neutral receive API for explicit native-format PushCommand

@@ -252,9 +252,10 @@ class IndexTransaction:
         self._used = True
         from .ref_transaction import require_no_ref_transaction
         require_no_ref_transaction(self.file.git_dir)
-        pending = self.file.git_dir/"checkout-state"
-        check_path(self.file.git_dir,pending)
-        if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
+        for name in ("checkout-state", "operation-state"):
+            pending = self.file.git_dir/name
+            check_path(self.file.git_dir,pending)
+            if pending.exists():raise UnsupportedFormat("worktree recovery is pending")
         self.file._profile()
         check_path(self.file.git_dir, self.lock)
         try:
@@ -265,8 +266,10 @@ class IndexTransaction:
         self._stream = os.fdopen(fd, "wb")
         try:
             require_no_ref_transaction(self.file.git_dir)
-            check_path(self.file.git_dir,pending)
-            if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
+            for name in ("checkout-state", "operation-state"):
+                pending = self.file.git_dir/name
+                check_path(self.file.git_dir,pending)
+                if pending.exists():raise UnsupportedFormat("worktree recovery is pending")
             self._index = self.file.read()
         except BaseException:
             self.__exit__(None, None, None)
