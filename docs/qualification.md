@@ -94,9 +94,20 @@ evidence only. It does not publish packages or authorize a release.
 
 Current source adds `worktree.merge-two-parent`, selected only with
 `merge-native`, `merge-conflicts`, `merge-recovery` and `merge-no-git`. Each
-source/wheel/sdist qualification now includes 33 checks across 17 selected
+source/wheel/sdist qualification now includes 37 checks across 18 selected
 scopes. The native/conflict/recovery suite runs against the selected installed
 module before a separate no-Git worker exercises a two-parent merge for each
 object format. The supported finite merge profile is documented in
 [merging.md](merging.md); this does not certify native alignment heuristics,
 recursive bases or hostile filesystem replacement.
+
+
+## Reset and restore qualification
+
+`worktree.reset-restore` requires `reset-native`, `restore-native`,
+`reset-restore-recovery` and `reset-restore-no-git`. Native comparisons cover
+soft/mixed/hard reset and independent/combined literal-path restore in both
+hash formats. Dirty staging/worktree, untracked collisions, stale previews and
+interrupted ref/index/worktree publication are mandatory fixtures against each
+selected installed implementation. The separate no-Git worker exercises the
+same APIs without a Git runtime. Current source selects 37 checks/18 scopes.

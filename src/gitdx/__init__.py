@@ -21,6 +21,7 @@ from .revisions import AmbiguousRevision, RevisionLimits, RevisionNotFound, Unsu
 from .ancestry import is_ancestor, merge_bases
 from .merge import MergeConflict, MergeLimits, MergePlan, MergeResult
 from .worktree_transaction import MutationPlan, MutationResult
+from .reset_restore import ResetPlan, RestorePlan
 from .pack_writer import PackBundle, PackWriteLimits, reachable_objects, write_pack
 from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, CheckoutPlan, CheckoutRecoveryRequired
 from .checkout_transaction import CheckoutResult
@@ -55,6 +56,7 @@ __all__ += ["AmbiguousRevision", "RevisionLimits", "RevisionNotFound", "Unsuppor
 __all__ += ["is_ancestor", "merge_bases"]
 __all__ += ["MergeConflict", "MergeLimits", "MergePlan", "MergeResult"]
 __all__ += ["MutationPlan", "MutationResult"]
+__all__ += ["ResetPlan", "RestorePlan"]
 __all__ += ["PackBundle", "PackWriteLimits", "reachable_objects", "write_pack"]
 __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPlan", "CheckoutRecoveryRequired"]
 __all__ += ["CheckoutResult"]

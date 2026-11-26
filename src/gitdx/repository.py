@@ -111,6 +111,26 @@ class Repository:
         from .merge import recover_merge
         return recover_merge(self)
 
+    def plan_reset(self, revision, **options):
+        from .reset_restore import plan_reset
+        return plan_reset(self,revision,**options)
+
+    def apply_reset(self, plan):
+        from .reset_restore import apply_reset
+        return apply_reset(self,plan)
+
+    def plan_restore(self, *paths, **options):
+        from .reset_restore import plan_restore
+        return plan_restore(self,paths,**options)
+
+    def apply_restore(self, plan):
+        from .reset_restore import apply_restore
+        return apply_restore(self,plan)
+
+    def recover_operation(self):
+        from .worktree_transaction import recover_mutation
+        return recover_mutation(self)
+
     def branches(self, *, limits=None):
         from .history import list_refs
         return list_refs(self, "refs/heads/", limits=limits)

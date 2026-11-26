@@ -32,6 +32,8 @@ and expected-HEAD publication, plus bounded parent-order history and ref listing
 [Two-parent merge plans](docs/merging.md) on current source provide bounded
 text merges, conflict index stages, explicit commit resolution, guarded abort
 and process-interruption recovery.
+[Reset/restore plans](docs/reset-restore.md) separate ref, index and worktree
+effects, with explicit discard and the same guarded recovery.
 
 [Pack writing](docs/pack-writing.md) validates selected object closures and emits
 native-format non-delta packs with v2 indexes, without a Git runtime.
