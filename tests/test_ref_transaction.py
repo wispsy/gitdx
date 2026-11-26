@@ -20,7 +20,7 @@ import test_objects as oracle
 
 
 def snapshot(repo):
-    return {str(p.relative_to(repo.git_dir)):p.read_bytes() for p in (repo.git_dir/'refs').rglob('*') if p.is_file()} | {
+    return {p.relative_to(repo.git_dir).as_posix():p.read_bytes() for p in (repo.git_dir/'refs').rglob('*') if p.is_file()} | {
         'packed-refs':(repo.git_dir/'packed-refs').read_bytes() if (repo.git_dir/'packed-refs').exists() else None}
 
 
@@ -49,7 +49,7 @@ class RefTransactionTests(unittest.TestCase):
         observed=[];original=FilesRefStore._lock
         @contextmanager
         def record(store,path):
-            observed.append(str(path.relative_to(store.path)))
+            observed.append(path.relative_to(store.path).as_posix())
             with original(store,path):yield
         with patch.object(FilesRefStore,'_lock',record):result=self.repo.refs.transaction(reversed(self.changes))
         self.assertTrue(result.committed);self.assertFalse(result.atomic)
