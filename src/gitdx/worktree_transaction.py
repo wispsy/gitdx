@@ -212,8 +212,10 @@ def apply_mutation(repo, plan, *, validate):
         receipt = _prepare(repo, base, new_head, state_name=STATE, operation=data)
         try:
             _install(repo, before, after, after, base.limits)
-            _put(repo, "index", None if plan.remove_index else base.new_index)
-            for change in plan.metadata:_put(repo, change.name, change.after)
+            after_index = None if plan.remove_index else base.new_index
+            if after_index!=base.old_index:_put(repo, "index", after_index)
+            for change in plan.metadata:
+                if change.before!=change.after:_put(repo, change.name, change.after)
             receipt["phase"] = "committed";_save(repo.git_dir/STATE, receipt)
             pending = _finalize(repo, receipt, record)
             return MutationResult(plan.operation, repo.refs.resolve().oid, cleanup_pending=pending)
@@ -238,8 +240,9 @@ def recover_mutation(repo):
             if _index_bytes(repo) not in (old_index, after_index):raise CheckoutConflict("operation index changed externally")
             receipt["phase"] = "rolling-back";_save(repo.git_dir/STATE, receipt)
             _install(repo, before, after, before, limits)
-            _put(repo, "index", old_index)
-            for change in reversed(changes):_put(repo, change.name, change.before)
+            if _index_bytes(repo)!=old_index:_put(repo, "index", old_index)
+            for change in reversed(changes):
+                if metadata(repo,change.name)!=change.before:_put(repo, change.name, change.before)
             receipt["phase"] = "rolled-back";_save(repo.git_dir/STATE, receipt)
         pending = _finalize(repo, receipt, record) if committed else _complete(repo, receipt, state_name=STATE)
         return MutationResult(record["name"], repo.refs.resolve().oid, rolled_back=not committed, cleanup_pending=pending)
