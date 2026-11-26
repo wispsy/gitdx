@@ -13,7 +13,7 @@ jobs:
   tests:
     name: Tests (${{ matrix.os }}, Python 3.14)
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 20 || 10 }}
     strategy:
       fail-fast: false
       matrix:
@@ -41,7 +41,7 @@ jobs:
   distribution:
     name: Installed wheel and sdist (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 25 || 15 }}
     strategy:
       fail-fast: false
       matrix:
