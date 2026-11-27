@@ -70,6 +70,7 @@ class WorkingTree:
         raw_config = read_file(self.repo.git_dir,self.repo.git_dir/"config",1024*1024)
         current = parse_config(raw_config)
         check_repository_features(self.repo.git_dir,current)
+        if current.ref_storage!='files':raise UnsupportedFormat('reftable worktree operations are not qualified')
         if current.object_format != self.repo.object_format:raise UnsupportedFormat("repository object format changed")
         worktree_policy(current)
         self.excludes = excludes_file(self.repo,current)

@@ -10,6 +10,8 @@ import re
 import ssl
 import sys
 
+from .confined_fs import supported as confined_storage_supported
+
 
 class CapabilityState(StrEnum):
     SUPPORTED='supported'
@@ -43,13 +45,16 @@ _PROFILES=(
     ('protocol.push-records', 'supported', 'Bounded receive-pack commands and report-status v1/v2 records', ('push-codec',)),
     ('protocol.upload-pack', 'supported', 'Bounded read-only stateless v0/v1/v2 discovery/fetch with complete advertised-tip packs', ('upload-pack-native','upload-pack-policy','upload-pack-no-git')),
     ('receive.quarantine-policy', 'supported', 'Bounded complete object graphs, explicit policy and single-ref receive outcomes', ('receive-native','receive-policy','receive-fault','receive-no-git')),
+    ('receive.ingestion-validation', 'supported', 'Explicit trust selection, early untrusted SHA-1 refusal and bounded SHA-256 structural validation', ('ingestion-policy','ingestion-native','ingestion-no-git')),
+    ('receive.untrusted-sha256', 'supported' if confined_storage_supported() else 'unsupported', 'Owner-controlled Linux descriptor confinement, per-operation resource bounds and explicit interrupted recovery; refused on other platforms', ('ingestion-confinement','ingestion-no-git')),
     ('config.local', 'supported', 'Local ordered configuration and conservative worktree policy', ('native-status','refusal-profiles')),
     ('config.includes-inspection', 'experimental', 'Explicit confined read-only includes; repository mutations refuse includes', ()),
     ('repository.alternates', 'unsupported', 'Alternates are refused before repository operations', ('refusal-profiles',)),
     ('repository.shallow', 'unsupported', 'Shallow boundaries are refused; no implicit completion', ('refusal-profiles',)),
     ('repository.promisor', 'unsupported', 'Promisor/filter metadata is refused; no lazy fetch', ('refusal-profiles',)),
     ('repository.required-unknown', 'unsupported', 'Unknown required formats/extensions fail before writes', ('refusal-profiles',)),
-    ('repository.reftable', 'unsupported', 'Files refs only; reftable is a later profile', ('refusal-profiles',)),
+    ('repository.reftable', 'supported', 'Bounded read-only v1/v2 reftable stacks, exact-case refs and backend selection', ('reftable-native','reftable-corruption','reftable-no-git')),
+    ('refs.reftable-write', 'unsupported', 'Reftable ref/index/worktree/object mutations require a qualified writer', ('reftable-corruption',)),
     ('repository.linked-worktrees', 'unsupported', 'Gitfiles/commondir and linked worktrees are refused', ()),
     ('attributes.conversion', 'unsupported', 'External filters, text conversion and encoding drivers never execute', ()),
     ('refs.atomic-multi-update', 'unsupported', 'Single-ref transactions do not promise atomic multi-ref visibility', ()),

@@ -215,6 +215,14 @@ class RepositoryObjectStore(LooseObjectStore):
         from .delta import resolve_delta_chain
         return resolve_delta_chain(oid,_PackLookup(self).locate,self.pack_limits)
 
+    def write(self,raw,**options):
+        from .config import parse_config
+        config=self.path.parent/'config'
+        try:selected=parse_config(read_file(self.path.parent,config,1024*1024))
+        except FileNotFoundError:selected=None
+        if selected is not None and selected.ref_storage!='files':raise UnsupportedFormat('reftable repository writes are not qualified')
+        return super().write(raw,**options)
+
 
 class _PackLookup:
     def __init__(self,store):
@@ -224,11 +232,12 @@ class _PackLookup:
     def _paths(self):
         store=self.store
         directory = store.path / "pack"
-        from .filesystem import check_path
+        from .filesystem import check_path, storage_exists, storage_names
         check_path(store.path, directory)
-        if not directory.exists():return ()
+        if not storage_exists(directory):return ()
         paths = []
-        for path in directory.iterdir():
+        for name in storage_names(directory):
+            path=directory/name
             if path.name.startswith("pack-") and path.suffix == ".idx":
                 if not re.fullmatch(rf"pack-[0-9a-f]{{{store.format.hex_size}}}\.idx", path.name):raise InvalidPack("malformed pack-index filename")
                 paths.append(path)

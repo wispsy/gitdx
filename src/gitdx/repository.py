@@ -12,7 +12,7 @@ from .names import InvalidRef, validate_branch, validate_refname
 from .object_store import StoreLimits
 from .pack import PackLimits, RepositoryObjectStore
 from .objects import ObjectFormat, ObjectId
-from .refs import FilesRefStore
+from .refs import FilesRefStore, RefStore
 from .index import IndexFile
 from .repository_profile import check_repository_features
 
@@ -27,6 +27,7 @@ class Repository:
     work_tree: Path | None
     config: RepositoryConfig
     objects: RepositoryObjectStore
+    storage_identity: tuple[int,int] | None = None
 
     @property
     def bare(self) -> bool:
@@ -37,11 +38,16 @@ class Repository:
         return self.config.object_format
 
     @property
-    def refs(self) -> FilesRefStore:
+    def refs(self) -> RefStore:
+        if self.config.ref_storage=='reftable':
+            from .reftable import ReftableRefStore
+            return ReftableRefStore(self.git_dir,self.objects)
         return FilesRefStore(self.git_dir, self.objects)
 
     @property
     def index(self) -> IndexFile:
+        current=parse_config(read_file(self.git_dir,self.git_dir/'config',1024*1024))
+        if current.ref_storage!='files':raise UnsupportedFormat('reftable index operations are not qualified')
         if self.bare:
             raise UnsupportedFormat("bare repositories have no working-tree index")
         return IndexFile(self.git_dir, self.object_format)
@@ -147,6 +153,10 @@ class Repository:
         from .receive import receive
         return receive(self,commands,pack,**options)
 
+    def recover_receive(self, **options):
+        from .receive import recover_receive
+        return recover_receive(self,**options)
+
     def plan_checkout(self, destination, *, unborn=False, overwrite_tracked=False, limits=None):
         from .checkout import plan_checkout
         return plan_checkout(self, destination, unborn=unborn, overwrite_tracked=overwrite_tracked, limits=limits)
@@ -242,7 +252,9 @@ class Repository:
         head = read_file(git_dir, git_dir / "HEAD", 4096).removesuffix(b"\n")
         config = parse_config(read_file(git_dir, git_dir / "config", 1024 * 1024))
         check_repository_features(git_dir,config)
-        if head.startswith(b"ref: "):
+        if config.ref_storage=='reftable':
+            if head!=b'ref: refs/heads/.invalid':raise UnsupportedFormat('invalid reftable compatibility HEAD marker')
+        elif head.startswith(b"ref: "):
             try:
                 validate_refname(head[5:].decode("utf-8"))
             except UnicodeError as error:
@@ -264,7 +276,10 @@ class Repository:
                 raise UnsupportedFormat("bare config cannot be used with an attached worktree")
             work_tree = root
         objects = RepositoryObjectStore(git_dir / "objects", config.object_format, limits=limits, pack_limits=pack_limits)
-        return cls(git_dir, work_tree, config, objects)
+        info=git_dir.stat()
+        repository=cls(git_dir, work_tree, config, objects,(info.st_dev,info.st_ino))
+        if config.ref_storage=='reftable':repository.refs.read('HEAD')
+        return repository
 
     @classmethod
     def discover(cls, start: str | os.PathLike[str] = ".", *, limits: StoreLimits | None = None, pack_limits: PackLimits | None = None) -> Repository:

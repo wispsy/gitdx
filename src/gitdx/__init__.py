@@ -8,6 +8,7 @@ from .repository import Repository, RepositoryNotFound
 from .config import Config, ConfigEntry, RepositoryConfig, parse_config, parse_values, read_config
 from .names import InvalidRef
 from .refs import DirectRef, FilesRefStore, RefConflict, RefLocked, RefStore, ResolvedRef, SymbolicRef
+from .reftable import InvalidReftable, Reftable, ReftableLimits, ReftableRefStore
 from .index import Index, IndexEntry, IndexExtension, IndexFile, IndexLimits, IndexLocked, IndexStat, InvalidIndex
 from .packed_refs import PackedRef, PackedRefs
 from .reflog import ReflogReceipt, ReflogUpdate
@@ -30,8 +31,10 @@ from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, Checkout
 from .checkout_transaction import CheckoutResult
 from .quarantine import ObjectQuarantine, unpack_objects
 from .quarantine import QuarantineOwnershipError
+from .ingestion import IngestionLimits, IngestionProfile
+from .confined_fs import ConfinementError, FilesystemLimits
 from .receive import (ReceiveInterrupted, ReceiveLimits, ReceiveOutcome, ReceivePolicy, ReceiveRejected,
-                      ReceiveResult, ReceiveState, ReceiveView, receive)
+                      ReceiveResult, ReceiveState, ReceiveView, receive, recover_receive)
 from .transfers import (CloneIncomplete, FetchFailure, FetchInterrupted, FetchResult, FetchTransport, LocalTransport,
                         TransferCancelled, TransferControl, TransferError, TransferLimits, TransferTimeout, clone, fetch)
 from .http_transport import HTTPAuthorization, SmartHTTPTransport
@@ -52,6 +55,7 @@ __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFor
            "ObjectLimitExceeded", "ObjectStore", "StoreLimits", "Repository", "RepositoryNotFound", "InvalidRef",
            "DirectRef", "FilesRefStore", "RefConflict", "RefLocked", "RefStore", "ResolvedRef", "SymbolicRef"]
 __all__ += ["Index", "IndexEntry", "IndexExtension", "IndexFile", "IndexLimits", "IndexLocked", "IndexStat", "InvalidIndex"]
+__all__ += ['InvalidReftable','Reftable','ReftableLimits','ReftableRefStore']
 __all__ += ['UploadPack','UploadPackLimits']
 __all__ += ["PackedRef", "PackedRefs", "ReflogReceipt", "ReflogUpdate", "RefUpdateResult"]
 __all__ += ["RefChange", "RefRecoveryRequired", "RefTransactionInterrupted", "RefTransactionResult", "RefTransactionState"]
@@ -70,8 +74,11 @@ __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPla
 __all__ += ["CheckoutResult"]
 __all__ += ["Config", "ConfigEntry", "RepositoryConfig", "parse_config", "parse_values", "read_config"]
 __all__ += ["ObjectQuarantine", "unpack_objects"]
+__all__ += ["IngestionLimits", "IngestionProfile"]
+__all__ += ["ConfinementError", "FilesystemLimits"]
 __all__ += ["QuarantineOwnershipError", "ReceiveInterrupted", "ReceiveLimits", "ReceiveOutcome", "ReceivePolicy",
             "ReceiveRejected", "ReceiveResult", "ReceiveState", "ReceiveView", "receive"]
+__all__ += ["recover_receive"]
 __all__ += ["HTTPAuthorization", "SmartHTTPTransport"]
 __all__ += ["CapabilityState", "QualificationEvidence", "capability_report", "implementation_digest", "runtime_toolchain"]
 __all__ += ["PushOutcome", "PushResult", "PushState", "PushTransport", "PushUncertain", "PushUpdate", "push"]

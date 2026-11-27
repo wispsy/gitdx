@@ -57,7 +57,7 @@ repairs an absent/partial/already-written append idempotently. Changed history o
 a missing receipt requires manual reconciliation; unrelated log data is never
 overwritten. An interrupted response still requires a fresh ref read.
 
-Packed refs are limited to 16 MiB/100,000 entries and logs to 8 MiB. Reftable,
+Packed refs are limited to 16 MiB/100,000 entries and logs to 8 MiB. Reftable writes,
 shared worktrees, multi-ref transactions and full crash durability remain later
 work. All operations assume owner-controlled directories; hostile filesystem
 replacement and hosting hardening remain separately gated.

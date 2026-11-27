@@ -26,7 +26,7 @@ currently refused. Object lookup uses loose objects and indexed packs with
 [bounded, verified OFS/REF delta resolution](packs.md).
 
 Repository format versions 0 and 1 are recognized. Only native SHA-1/SHA-256
-and files refs are selected; reftable and all other required extensions fail
+and files refs are selected for writes; [reftable](reftable.md) is read-only and other required extensions fail
 before operations. The [local UTF-8 configuration profile](configuration.md)
 supports case-insensitive sections/variables, case-sensitive quoted subsections,
 quoted/escaped/continued values, inline comments, bare booleans and ordered

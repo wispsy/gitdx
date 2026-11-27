@@ -1,7 +1,7 @@
 """Files refs, packed snapshots and explicit expected-old mutation outcomes."""
 
 from dataclasses import dataclass
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 import os
 from pathlib import Path
 from typing import Protocol
@@ -9,9 +9,11 @@ from typing import Protocol
 from .config import parse_config
 from .repository_profile import check_repository_features
 from .errors import GitdxError, InvalidObject, UnsupportedFormat
-from .filesystem import check_path, read_file, replace_file
+from .filesystem import (check_path, read_file, replace_file, storage_exists, storage_is_dir,
+                         storage_names, storage_unlink)
+from .confined_fs import active
 from .names import InvalidRef, validate_refname
-from .object_store import ObjectStore
+from .object_store import ObjectStore, ObjectLimitExceeded
 from .objects import ObjectId, ObjectType, parse_object
 from .packed_refs import PackedRefs
 from .reflog import ReflogReceipt, ReflogStore, ReflogUpdate
@@ -39,7 +41,7 @@ class SymbolicRef:
     target: str
 
     def __post_init__(self) -> None:
-        validate_refname(self.target)
+        validate_refname(self.target,portable=False)
 
 
 type RefValue = DirectRef | SymbolicRef
@@ -74,6 +76,7 @@ class ResolvedRef:
 
 
 class RefStore(Protocol):
+    def snapshot(self, prefix: str = 'refs/', *, max_refs: int = 10_000, max_depth: int = 64, check=None) -> tuple: ...
     def read(self, name: str) -> RefValue | None: ...
 
     def resolve(self, name: str = "HEAD") -> ResolvedRef: ...
@@ -93,8 +96,29 @@ class FilesRefStore:
     def _profile(self) -> None:
         config = parse_config(read_file(self.path, self.path / "config", 1024 * 1024))
         check_repository_features(self.path,config)
-        if config.object_format != self.objects.format:
-            raise UnsupportedFormat("object format changed since the repository was opened")
+        if config.object_format != self.objects.format or config.ref_storage!='files':
+            raise UnsupportedFormat("reference or object format changed since the repository was opened")
+
+    def snapshot(self,prefix='refs/',*,max_refs=10_000,max_depth=64,check=None):
+        check=check or (lambda:None);names={e.name for e in self.packed().entries if e.name.startswith(prefix)}
+        stack=[(self.path/'refs',0)];visited=0
+        while stack:
+            check();path,depth=stack.pop();check_path(self.path,path)
+            if not storage_exists(path):continue
+            if depth>max_depth:raise ObjectLimitExceeded('ref snapshot depth exceeded')
+            for name in storage_names(path):
+                check();visited+=1
+                if visited>max_refs:raise ObjectLimitExceeded('ref snapshot scan limit exceeded')
+                target=path/name;check_path(self.path,target)
+                if storage_is_dir(target):stack.append((target,depth+1))
+                elif not name.endswith('.lock'):
+                    full=target.relative_to(self.path).as_posix()
+                    if full.startswith(prefix):names.add(full)
+                if len(names)>max_refs:raise ObjectLimitExceeded('ref snapshot count exceeded')
+        if len(names)>max_refs:raise ObjectLimitExceeded('ref snapshot count exceeded')
+        result=[]
+        for name in sorted(names):check();result.append((name,self.read(name)))
+        return tuple(result)
 
     def packed(self) -> PackedRefs:
         self._profile()
@@ -109,8 +133,8 @@ class FilesRefStore:
         check_path(self.path, path)
         parent = self.path
         for part in path.relative_to(self.path).parts:
-            if parent.is_dir():
-                if any(p.name != part and p.name.casefold() == part.casefold() for p in parent.iterdir()):
+            if storage_is_dir(parent):
+                if any(name != part and name.casefold() == part.casefold() for name in storage_names(parent)):
                     raise InvalidRef("ref name collides with another name under portable case folding")
             parent /= part
         return path
@@ -155,6 +179,14 @@ class FilesRefStore:
 
     @contextmanager
     def _lock(self, target):
+        scope=active()
+        if scope is not None:
+            lock=target.with_name(target.name+'.lock')
+            with ExitStack() as stack:
+                try:stack.enter_context(scope.lock(lock))
+                except FileExistsError as error:raise RefLocked('ref or packed-refs lock already exists; its owner must resolve it') from error
+                yield
+            return
         check_path(self.path, target)
         target.parent.mkdir(parents=True, exist_ok=True)
         lock = target.with_name(target.name + ".lock")
@@ -198,17 +230,17 @@ class FilesRefStore:
         from .ref_transaction import require_no_ref_transaction
         require_no_ref_transaction(self.path)
         operation = self.path/"operation-state";check_path(self.path, operation)
-        if operation.exists():raise UnsupportedFormat("worktree operation recovery is pending")
+        if storage_exists(operation):raise UnsupportedFormat("worktree operation recovery is pending")
         pending=self.path/"checkout-state";check_path(self.path,pending)
-        if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
+        if storage_exists(pending):raise UnsupportedFormat("checkout recovery is pending")
         if reflog is not None and not isinstance(reflog, ReflogUpdate):raise TypeError("reflog must be a ReflogUpdate")
         self._profile()
         with self._mutation_locks(name) as (target, packed):
             require_no_ref_transaction(self.path)
             check_path(self.path, operation)
-            if operation.exists():raise UnsupportedFormat("worktree operation recovery is pending")
+            if storage_exists(operation):raise UnsupportedFormat("worktree operation recovery is pending")
             check_path(self.path,pending)
-            if pending.exists():raise UnsupportedFormat("checkout recovery is pending")
+            if storage_exists(pending):raise UnsupportedFormat("checkout recovery is pending")
             old = self.read(name)
             if old != expected:raise RefConflict("ref changed since the expected value was read")
             old_oid = self.resolve(name).oid
@@ -224,7 +256,7 @@ class FilesRefStore:
             else:
                 new_oid = None
             if value is None:
-                loose_present = target.exists()
+                loose_present = storage_exists(target)
                 remaining = tuple(e for e in packed.entries if e.name != name)
                 if len(remaining) != len(packed.entries):
                     replacement = PackedRefs(remaining, packed.format, packed.headers).encode()
@@ -232,7 +264,7 @@ class FilesRefStore:
                     # deletion, preventing native pack-refs from restoring old data.
                     replace_file(self.path, self.path / "packed-refs", replacement)
                 check_path(self.path, target)
-                if loose_present:target.unlink()
+                if loose_present:storage_unlink(target)
             else:
                 self._profile()
                 replace_file(self.path, target, data)

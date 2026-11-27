@@ -6,7 +6,7 @@ from .objects import RawObject
 
 
 class DeltaBudget:
-    def __init__(self,limits):self.limits,self.bytes,self.operations=limits,0,0
+    def __init__(self,limits,*,check=None):self.limits,self.bytes,self.operations,self.check=limits,0,0,check
 
     @property
     def remaining(self):return self.limits.max_delta_bytes-self.bytes
@@ -27,6 +27,7 @@ def _integer(data,cursor):
 
 
 def _apply(base,instructions,budget):
+    if budget.check is not None:budget.check()
     source,cursor=_integer(instructions,0);target,cursor=_integer(instructions,cursor)
     if source!=len(base):raise InvalidObject("delta source size does not match its base")
     if target>budget.limits.max_object_bytes:raise ObjectLimitExceeded("delta target exceeds the object byte limit")
@@ -34,6 +35,7 @@ def _apply(base,instructions,budget):
     output=bytearray()
     while cursor<len(instructions):
         budget.operations+=1
+        if budget.check is not None and not budget.operations%1024:budget.check()
         if budget.operations>budget.limits.max_delta_operations:raise ObjectLimitExceeded("delta operation budget exceeded")
         opcode=instructions[cursor];cursor+=1
         if opcode&128:

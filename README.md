@@ -25,8 +25,9 @@ independent transactions.
 
 Current source adds [quarantined receive transactions](docs/receive.md) with
 explicit object/ref policy, complete graph validation and interruption outcomes.
-This trusted-storage API does not enable public hosting or change the published
-0.1.0a1 preview.
+[Explicit ingestion profiles](docs/ingestion.md) retain trusted local SHA-1 and
+SHA-256 support and select SHA-256-only untrusted receive on qualified Linux
+storage. Public HTTP receive is a separate gate; the published preview is unchanged.
 
 [Coordinated ref transactions](docs/ref-transactions.md) validate every expected
 old value under deterministic locks, with explicit prepared/committed recovery.
@@ -87,6 +88,9 @@ publish-if-absent writes under an existing owner-controlled objects directory.
 [Files refs](docs/refs.md) include packed refs, guarded deletion, explicit reflog
 outcomes, validated single-ref compare-and-swap and
 explicit unborn, symbolic and detached HEAD handling through `Repository.refs`.
+
+[Read-only reftable storage](docs/reftable.md) selects native v1/v2 table stacks,
+exact-case references and the same history interfaces; mutations remain refused.
 
 [Index v2 transactions](docs/index.md) expose format-aware staging snapshots
 and exclusive, explicitly committed writes through `Repository.index`.
