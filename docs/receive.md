@@ -35,6 +35,18 @@ checked before object promotion and again immediately before each ref CAS. A
 native writer may still move the ref; expected-old comparison remains mandatory.
 Local transport now uses this same intake and publication implementation.
 
+`publication_guard(view, commands)` optionally returns a trusted context manager
+for host-owned authorization/catalog exclusion. The engine enters it after
+complete validation and immutable object promotion, before acquiring ref locks,
+and retains it through final policy checks and all ref publication. Coordinated
+mode rechecks `ref_check` inside the ref locks while this context remains active.
+This gives hosts a consistent catalog-then-ref lock order and lets revocation,
+grants and policy revisions serialize with a push. Refusal/cancellation releases
+the context and quarantine; context-exit failure retains any already committed
+ref outcomes in `ReceiveInterrupted`. Context factories are application-selected
+Python code, never repository hooks. They must not mutate Git storage. Hosts
+must still recheck time-dependent expiry inside final policy callbacks.
+
 All supplied objects, including objects outside selected tip closures, undergo
 connectivity and kind validation. Commit parents, trees, blobs and annotated tag
 targets must be complete and type-consistent. Gitlinks refer to another

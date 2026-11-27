@@ -1,6 +1,7 @@
 """Hosting-neutral, bounded receive with explicit policy and publication outcomes."""
 
 from dataclasses import dataclass, field, replace
+from contextlib import nullcontext
 from enum import StrEnum
 from itertools import islice
 
@@ -47,12 +48,13 @@ class ReceivePolicy:
     object_check: object = field(default=None,repr=False)
     ref_check: object = field(default=None,repr=False)
     ingestion: IngestionProfile = IngestionProfile.TRUSTED_LOCAL
+    publication_guard: object = field(default=None,repr=False)
 
     def __post_init__(self):
         object.__setattr__(self,'ingestion',IngestionProfile(self.ingestion))
         for value in (self.allow_deletes,self.allow_non_fast_forwards,self.allow_tag_replacement):
             if type(value) is not bool:raise TypeError('receive policy switches must be booleans')
-        if any(value is not None and not callable(value) for value in (self.object_check,self.ref_check)):
+        if any(value is not None and not callable(value) for value in (self.object_check,self.ref_check,self.publication_guard)):
             raise TypeError('policy checks must be trusted callables')
 
 
@@ -243,36 +245,42 @@ def _receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,coordinated
                 for i in allowed:outcomes[i]=ReceiveOutcome(commands[i],ReceiveState.REJECTED,b'coordinated batch refused')
                 allowed=[]
             if allowed and pack:incoming.promote()
-            if coordinated and allowed:
-                def guard():
-                    for command in commands:
-                        if _ref_reason(repo,view,command,policy,control) is not None:raise RefConflict('receive ref policy changed')
-                changes=tuple(RefChange(c.name.decode('ascii'),c.new,c.old) for c in commands)
-                try:ref_transaction=repo.refs.transaction(changes,check=control.check,before_publish=guard)
-                except RefTransactionInterrupted as interrupted:
-                    ref_transaction=interrupted.result
-                    state=ReceiveState.ACCEPTED if ref_transaction.committed else ReceiveState.UNKNOWN
-                    receipts={r.name:r for r in ref_transaction.updates}
-                    outcomes=[ReceiveOutcome(c,state, None if ref_transaction.committed else b'ref recovery required',receipts.get(c.name.decode('ascii'))) for c in commands]
-                    raise
-                except (RefConflict,RefLocked,InvalidRef,UnsupportedFormat):
-                    outcomes=[ReceiveOutcome(c,ReceiveState.REJECTED,b'coordinated ref transaction rejected') for c in commands]
-                else:
-                    receipts={r.name:r for r in ref_transaction.updates}
-                    outcomes=[ReceiveOutcome(c,ReceiveState.ACCEPTED,receipt=receipts[c.name.decode('ascii')]) for c in commands]
-            for i in (() if coordinated else allowed):
-                command=commands[i];control.check()
-                reason=_ref_reason(repo,view,command,policy,control)
-                if reason is not None:
-                    outcomes[i]=ReceiveOutcome(command,ReceiveState.REJECTED,reason);continue
-                outcomes[i]=ReceiveOutcome(command,ReceiveState.UNKNOWN,b'publication interrupted')
-                try:
-                    name=command.name.decode('ascii')
-                    receipt=repo.refs.delete(name,expected=command.old) if command.new is None else repo.refs.update(name,command.new,expected=command.old)
-                except (RefConflict,RefLocked,InvalidRef,UnsupportedFormat):
-                    outcomes[i]=ReceiveOutcome(command,ReceiveState.REJECTED,b'reference rejected')
-                else:outcomes[i]=ReceiveOutcome(command,ReceiveState.ACCEPTED,receipt=receipt)
+            # A trusted host can serialize catalog policy/revocation with the
+            # complete publication boundary. Acquire it before ref locks, then
+            # re-run ref_check under the coordinated backend's own locks.
+            publication = policy.publication_guard(view,commands) if allowed and policy.publication_guard is not None else nullcontext()
+            with publication:
                 control.check()
+                if coordinated and allowed:
+                    def guard():
+                        for command in commands:
+                            if _ref_reason(repo,view,command,policy,control) is not None:raise RefConflict('receive ref policy changed')
+                    changes=tuple(RefChange(c.name.decode('ascii'),c.new,c.old) for c in commands)
+                    try:ref_transaction=repo.refs.transaction(changes,check=control.check,before_publish=guard)
+                    except RefTransactionInterrupted as interrupted:
+                        ref_transaction=interrupted.result
+                        state=ReceiveState.ACCEPTED if ref_transaction.committed else ReceiveState.UNKNOWN
+                        receipts={r.name:r for r in ref_transaction.updates}
+                        outcomes=[ReceiveOutcome(c,state, None if ref_transaction.committed else b'ref recovery required',receipts.get(c.name.decode('ascii'))) for c in commands]
+                        raise
+                    except (RefConflict,RefLocked,InvalidRef,UnsupportedFormat):
+                        outcomes=[ReceiveOutcome(c,ReceiveState.REJECTED,b'coordinated ref transaction rejected') for c in commands]
+                    else:
+                        receipts={r.name:r for r in ref_transaction.updates}
+                        outcomes=[ReceiveOutcome(c,ReceiveState.ACCEPTED,receipt=receipts[c.name.decode('ascii')]) for c in commands]
+                for i in (() if coordinated else allowed):
+                    command=commands[i];control.check()
+                    reason=_ref_reason(repo,view,command,policy,control)
+                    if reason is not None:
+                        outcomes[i]=ReceiveOutcome(command,ReceiveState.REJECTED,reason);continue
+                    outcomes[i]=ReceiveOutcome(command,ReceiveState.UNKNOWN,b'publication interrupted')
+                    try:
+                        name=command.name.decode('ascii')
+                        receipt=repo.refs.delete(name,expected=command.old) if command.new is None else repo.refs.update(name,command.new,expected=command.old)
+                    except (RefConflict,RefLocked,InvalidRef,UnsupportedFormat):
+                        outcomes[i]=ReceiveOutcome(command,ReceiveState.REJECTED,b'reference rejected')
+                    else:outcomes[i]=ReceiveOutcome(command,ReceiveState.ACCEPTED,receipt=receipt)
+                    control.check()
     except BaseException as cause:error=cause
     result=ReceiveResult(tuple(outcomes),unpack_ok,len(incoming.received),incoming.promoted,
                          incoming.cleanup_pending,incoming.cleanup_error,coordinated=coordinated,
