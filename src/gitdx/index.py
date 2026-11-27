@@ -216,6 +216,7 @@ class IndexFile:
     def _profile(self):
         config = parse_config(read_file(self.git_dir, self.git_dir / "config", 1024 * 1024))
         check_repository_features(self.git_dir,config)
+        if config.ref_storage!='files':raise UnsupportedFormat('reftable index operations are not qualified')
         if config.object_format != self.format or config.bare:
             raise UnsupportedFormat("index transactions require the selected non-bare repository format")
 

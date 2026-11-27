@@ -13,7 +13,7 @@ from .filesystem import (check_path, read_file, replace_file, storage_exists, st
                          storage_names, storage_unlink)
 from .confined_fs import active
 from .names import InvalidRef, validate_refname
-from .object_store import ObjectStore
+from .object_store import ObjectStore, ObjectLimitExceeded
 from .objects import ObjectId, ObjectType, parse_object
 from .packed_refs import PackedRefs
 from .reflog import ReflogReceipt, ReflogStore, ReflogUpdate
@@ -41,7 +41,7 @@ class SymbolicRef:
     target: str
 
     def __post_init__(self) -> None:
-        validate_refname(self.target)
+        validate_refname(self.target,portable=False)
 
 
 type RefValue = DirectRef | SymbolicRef
@@ -76,6 +76,7 @@ class ResolvedRef:
 
 
 class RefStore(Protocol):
+    def snapshot(self, prefix: str = 'refs/', *, max_refs: int = 10_000, max_depth: int = 64, check=None) -> tuple: ...
     def read(self, name: str) -> RefValue | None: ...
 
     def resolve(self, name: str = "HEAD") -> ResolvedRef: ...
@@ -95,8 +96,29 @@ class FilesRefStore:
     def _profile(self) -> None:
         config = parse_config(read_file(self.path, self.path / "config", 1024 * 1024))
         check_repository_features(self.path,config)
-        if config.object_format != self.objects.format:
-            raise UnsupportedFormat("object format changed since the repository was opened")
+        if config.object_format != self.objects.format or config.ref_storage!='files':
+            raise UnsupportedFormat("reference or object format changed since the repository was opened")
+
+    def snapshot(self,prefix='refs/',*,max_refs=10_000,max_depth=64,check=None):
+        check=check or (lambda:None);names={e.name for e in self.packed().entries if e.name.startswith(prefix)}
+        stack=[(self.path/'refs',0)];visited=0
+        while stack:
+            check();path,depth=stack.pop();check_path(self.path,path)
+            if not storage_exists(path):continue
+            if depth>max_depth:raise ObjectLimitExceeded('ref snapshot depth exceeded')
+            for name in storage_names(path):
+                check();visited+=1
+                if visited>max_refs:raise ObjectLimitExceeded('ref snapshot scan limit exceeded')
+                target=path/name;check_path(self.path,target)
+                if storage_is_dir(target):stack.append((target,depth+1))
+                elif not name.endswith('.lock'):
+                    full=target.relative_to(self.path).as_posix()
+                    if full.startswith(prefix):names.add(full)
+                if len(names)>max_refs:raise ObjectLimitExceeded('ref snapshot count exceeded')
+        if len(names)>max_refs:raise ObjectLimitExceeded('ref snapshot count exceeded')
+        result=[]
+        for name in sorted(names):check();result.append((name,self.read(name)))
+        return tuple(result)
 
     def packed(self) -> PackedRefs:
         self._profile()

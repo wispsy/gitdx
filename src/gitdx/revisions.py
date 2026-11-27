@@ -131,14 +131,14 @@ class _Context:
         width = self.repo.object_format.hex_size
         if re.fullmatch('[0-9a-fA-F]{%d}' % width, name):return ObjectId(name.lower(), self.repo.object_format)
         if name.startswith('refs/'):
-            validate_refname(name);oid = self.repo.refs.resolve(name).oid
+            validate_refname(name,portable=self.repo.config.ref_storage=='files');oid = self.repo.refs.resolve(name).oid
             if oid is None:raise RevisionNotFound('fully qualified ref is absent')
             return oid
         names = ['refs/' + name, 'refs/tags/' + name, 'refs/heads/' + name,
                  'refs/remotes/' + name, 'refs/remotes/' + name + '/HEAD']
         refs = []
         for candidate in names:
-            validate_refname(candidate);oid = self.repo.refs.resolve(candidate).oid
+            validate_refname(candidate,portable=self.repo.config.ref_storage=='files');oid = self.repo.refs.resolve(candidate).oid
             if oid is not None:refs.append(oid)
         if len(refs) > 1:raise AmbiguousRevision('short ref name is ambiguous; select a fully qualified ref')
         abbreviated = self.prefix(name.lower()) if re.fullmatch('[0-9a-fA-F]{4,%d}' % (width - 1), name) else None
@@ -154,7 +154,7 @@ _SUFFIX = re.compile(r'\^(?:\{(?:object|commit|tree|blob|tag)?\}|[0-9]*)|~[0-9]*
 def _syntax(value, limits):
     if not isinstance(value, str):raise TypeError('revision must be a string or ObjectId')
     if len(value.encode('utf-8')) > limits.max_syntax_bytes:raise ObjectLimitExceeded('revision syntax byte limit exceeded')
-    if not value or any(ord(c) <= 32 or ord(c) >= 127 for c in value) or any(s in value for s in (':', '@{', '..', '\\')) or value.startswith(('-', '@')):
+    if not value or any(ord(c)<=32 or ord(c)==127 for c in value) or any(s in value for s in (':', '@{', '..', '\\')) or value.startswith(('-', '@')):
         raise UnsupportedRevision('unsupported revision syntax')
     match = re.match(r'[^~^]+', value)
     if match is None:raise UnsupportedRevision('revision requires an explicit base')
@@ -205,9 +205,8 @@ def resolve_revision(repo, revision, *, limits=None):
 
 
 def check_history_profile(repo):
-    packed = repo.refs.packed()
+    replacement = repo.refs.snapshot('refs/replace/')
     for relative in ('info/grafts', 'refs/replace'):
         path = repo.git_dir / relative;check_path(repo.git_dir, path)
         if path.exists():raise UnsupportedFormat('replacement and graft history is unsupported')
-    if any(entry.name.startswith('refs/replace/') for entry in packed.entries):
-        raise UnsupportedFormat('packed replacement history is unsupported')
+    if replacement:raise UnsupportedFormat('replacement history is unsupported')

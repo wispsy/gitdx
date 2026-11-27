@@ -8,6 +8,7 @@ from .repository import Repository, RepositoryNotFound
 from .config import Config, ConfigEntry, RepositoryConfig, parse_config, parse_values, read_config
 from .names import InvalidRef
 from .refs import DirectRef, FilesRefStore, RefConflict, RefLocked, RefStore, ResolvedRef, SymbolicRef
+from .reftable import InvalidReftable, Reftable, ReftableLimits, ReftableRefStore
 from .index import Index, IndexEntry, IndexExtension, IndexFile, IndexLimits, IndexLocked, IndexStat, InvalidIndex
 from .packed_refs import PackedRef, PackedRefs
 from .reflog import ReflogReceipt, ReflogUpdate
@@ -53,6 +54,7 @@ __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFor
            "ObjectLimitExceeded", "ObjectStore", "StoreLimits", "Repository", "RepositoryNotFound", "InvalidRef",
            "DirectRef", "FilesRefStore", "RefConflict", "RefLocked", "RefStore", "ResolvedRef", "SymbolicRef"]
 __all__ += ["Index", "IndexEntry", "IndexExtension", "IndexFile", "IndexLimits", "IndexLocked", "IndexStat", "InvalidIndex"]
+__all__ += ['InvalidReftable','Reftable','ReftableLimits','ReftableRefStore']
 __all__ += ["PackedRef", "PackedRefs", "ReflogReceipt", "ReflogUpdate", "RefUpdateResult"]
 __all__ += ["RefChange", "RefRecoveryRequired", "RefTransactionInterrupted", "RefTransactionResult", "RefTransactionState"]
 __all__ += ["InvalidPack", "PackFile", "PackIndex", "PackIndexEntry", "PackLimits", "RepositoryObjectStore"]

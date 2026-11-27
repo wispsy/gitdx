@@ -107,7 +107,7 @@ def check_names(names):
 
 
 def push(repo,transport,updates,*,atomic=False,limits=None,cancel=None):
-    control=TransferControl(limits,cancel);control.check();repo.refs.packed()
+    control=TransferControl(limits,cancel);control.check();repo.refs.snapshot(max_refs=control.limits.max_refs,check=control.check)
     updates=tuple(islice(updates,control.limits.max_refs+1))
     if not updates or len(updates)>control.limits.max_refs:raise ValueError('select a bounded, nonempty push batch')
     if any(not isinstance(u,PushUpdate) for u in updates):raise TypeError('select PushUpdate proposals')
