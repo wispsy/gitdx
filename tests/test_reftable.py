@@ -96,6 +96,26 @@ class ReftableTests(unittest.TestCase):
 class ReftableNativeTests(unittest.TestCase):
     setUpClass=classmethod(oracle.GitOracleTests.setUpClass.__func__)
 
+    def test_readonly_upload_pack_preserves_distinct_case_refs_with_native_reftable_client(self):
+        from test_upload_pack import upload_fixture
+        for format in ObjectFormat:
+            with self.subTest(format=format),tempfile.TemporaryDirectory() as tmp:
+                root=Path(tmp);repo=Repository.init(root/'source.git',bare=True,object_format=format)
+                tip=commit_tree(repo,{b'file':b'old'});other=commit_tree(repo,{b'file':b'new'},parents=(tip,))
+                repo.refs.update('refs/heads/main',tip,expected=None)
+                oracle.git(repo.git_dir,'refs','migrate','--ref-format=reftable')
+                oracle.git(repo.git_dir,'update-ref','refs/heads/Foo',str(tip))
+                oracle.git(repo.git_dir,'update-ref','refs/heads/foo',str(other))
+                source=Repository.open(repo.git_dir)
+                with upload_fixture(source) as (url,requests,errors):
+                    for version in (0,2):
+                        client=root/('client-'+str(version))
+                        oracle.git(root,'-c','protocol.version='+str(version),'clone','--bare','--ref-format=reftable',url,str(client))
+                        self.assertEqual(Repository.open(client).refs.snapshot(),source.refs.snapshot())
+                        self.assertEqual(Repository.open(client).refs.resolve('refs/heads/foo').oid,other)
+                        oracle.git(client,'fsck','--strict','--no-dangling')
+                    self.assertEqual(errors,[])
+
     def test_unaligned_indexed_and_log_only_fixtures_match_native(self):
         for format in ObjectFormat:
             with self.subTest(format=format),tempfile.TemporaryDirectory() as tmp:

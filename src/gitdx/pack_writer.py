@@ -35,13 +35,14 @@ class PackBundle:
     checksum: bytes
 
 
-def reachable_objects(store, roots, *, limits=None):
+def reachable_objects(store, roots, *, limits=None, check=None):
     """Validate every selected dependency before returning any complete closure."""
-    limits = limits or PackWriteLimits();pending = [];objects = {};total = edges = 0
+    limits = limits or PackWriteLimits();check=check or (lambda:None);pending = [];objects = {};total = edges = 0
     for oid in roots:
         if len(pending) >= limits.max_objects:raise ObjectLimitExceeded("too many pack roots")
         pending.append((oid, None))
     while pending:
+        check()
         oid, expected = pending.pop()
         if not isinstance(oid, ObjectId) or oid.format != store.format:raise InvalidObject("pack root/dependency format mismatch")
         raw = objects.get(oid)
@@ -80,19 +81,20 @@ def _header(kind, size):
     return result
 
 
-def write_pack(store, roots, *, limits=None):
-    limits = limits or PackWriteLimits();format = ObjectFormat(store.format)
-    objects = reachable_objects(store, roots, limits=limits)
+def write_pack(store, roots, *, limits=None, check=None):
+    limits = limits or PackWriteLimits();format = ObjectFormat(store.format);check=check or (lambda:None)
+    objects = reachable_objects(store, roots, limits=limits,check=check)
     count = len(objects);width = format.digest_size
     if 8+1024+count*(width+8)+2*width > limits.max_index_bytes:raise ObjectLimitExceeded("pack index byte limit exceeded")
     pack = bytearray(b"PACK"+struct.pack(">II", 2, count));offsets = [];crcs = [];fanout = [0]*256
     for oid, raw in objects:
+        check()
         encoded = _header({ObjectType.COMMIT:1, ObjectType.TREE:2, ObjectType.BLOB:3, ObjectType.TAG:4}[raw.kind], len(raw.data))
         encoded.extend(zlib.compress(raw.data))
         if len(pack)+len(encoded)+width > limits.max_pack_bytes:raise ObjectLimitExceeded("pack output byte limit exceeded")
         offsets.append(len(pack));crcs.append(zlib.crc32(encoded));fanout[oid.bytes[0]] += 1;pack.extend(encoded)
     if len(pack)+width > limits.max_pack_bytes:raise ObjectLimitExceeded("pack output byte limit exceeded")
-    checksum = hashlib.new(format.value, pack).digest();pack.extend(checksum)
+    check();checksum = hashlib.new(format.value, pack).digest();pack.extend(checksum)
     for i in range(1, 256):fanout[i] += fanout[i-1]
     index = bytearray(b"\xfftOc"+struct.pack(">I256I", 2, *fanout))
     index.extend(b"".join(oid.bytes for oid, _ in objects))

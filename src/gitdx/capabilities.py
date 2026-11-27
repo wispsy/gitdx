@@ -43,6 +43,7 @@ _PROFILES=(
     ('worktree.index-required', 'unsupported', 'Non-v2, split/sparse and unknown required index features are refused', ('refusal-index-required',)),
     ('transfer.fetch-local-http', 'supported', 'Complete same-format local and smart-HTTP fetch/clone', ('fetch-interop',)),
     ('protocol.push-records', 'supported', 'Bounded receive-pack commands and report-status v1/v2 records', ('push-codec',)),
+    ('protocol.upload-pack', 'supported', 'Bounded read-only stateless v0/v1/v2 discovery/fetch with complete advertised-tip packs', ('upload-pack-native','upload-pack-policy','upload-pack-no-git')),
     ('receive.quarantine-policy', 'supported', 'Bounded complete object graphs, explicit policy and single-ref receive outcomes', ('receive-native','receive-policy','receive-fault','receive-no-git')),
     ('receive.ingestion-validation', 'supported', 'Explicit trust selection, early untrusted SHA-1 refusal and bounded SHA-256 structural validation', ('ingestion-policy','ingestion-native','ingestion-no-git')),
     ('receive.untrusted-sha256', 'supported' if confined_storage_supported() else 'unsupported', 'Owner-controlled Linux descriptor confinement, per-operation resource bounds and explicit interrupted recovery; refused on other platforms', ('ingestion-confinement','ingestion-no-git')),

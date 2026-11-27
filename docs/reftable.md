@@ -50,3 +50,5 @@ The format follows the [Git reftable specification](https://git-scm.com/docs/ref
 Installed wheel/sdist qualification records `reftable-native`,
 `reftable-corruption` and `reftable-no-git`; the separate empty-PATH worker reads
 native migrated storage without executing Git.
+Native reftable clients also clone distinct mixed-case tips through upload-pack
+in both hashes, exercising the combined read-serving interface.
