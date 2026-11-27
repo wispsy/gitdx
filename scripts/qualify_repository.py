@@ -422,6 +422,9 @@ def qualify(args):
     import test_receive_guard
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_receive_guard))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('receive publication guard qualification failed or skipped')
+    import test_push_protocol
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromTestCase(test_push_protocol.PushProtocolTests))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('push codec qualification failed or skipped')
     import test_ref_transaction
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_ref_transaction))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('ref transaction qualification failed or skipped')
