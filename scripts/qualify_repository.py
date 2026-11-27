@@ -31,14 +31,16 @@ CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs'
  'receive-no-git', 'refs-transaction-native', 'refs-transaction-fault', 'refs-transaction-contention',
  'refs-transaction-no-git', 'ingestion-policy', 'ingestion-native', 'ingestion-no-git',
  'reftable-native','reftable-corruption','reftable-no-git',
- 'upload-pack-native','upload-pack-policy','upload-pack-no-git')
+ 'upload-pack-native','upload-pack-policy','upload-pack-no-git',
+ 'maintenance-native','maintenance-recovery','maintenance-concurrency','maintenance-no-git')
 if confined_storage_supported():CHECKS+=('ingestion-confinement',)
 CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'storage.delta-ofs-ref',
  'refs.files-packed', 'worktree.index-stage-status', 'worktree.checkout', 'history.commit',
  'config.local', 'diff.trees-bytes', 'history.revisions', 'history.ancestry',
  'transfer.fetch-local-http', 'protocol.push-records', 'transfer.push-local', 'transfer.push-http',
  'worktree.merge-two-parent', 'worktree.reset-restore', 'receive.quarantine-policy',
- 'refs.coordinated-multi-update', 'receive.ingestion-validation','repository.reftable','protocol.upload-pack')
+ 'refs.coordinated-multi-update', 'receive.ingestion-validation','repository.reftable','protocol.upload-pack',
+ 'storage.maintenance')
 if confined_storage_supported():CAPABILITIES+=('receive.untrusted-sha256',)
 
 
@@ -125,6 +127,15 @@ def make_fixture(root,format):
 def runtime(spec):
     if os.environ.get('PATH')!='':raise RuntimeError('runtime worker requires Git absent from PATH')
     root=Path(spec['root']);repo=Repository.open(root);format=ObjectFormat(spec['format'])
+    from contextlib import nullcontext
+    maintained = Repository.init(root.parent/'maintained.git', bare=True, object_format=format)
+    tree = maintained.objects.write(gitdx.Tree().to_raw())
+    tip = maintained.objects.write(Commit.create(tree, author=IDENTITY, committer=IDENTITY, message=b'maintenance').to_raw())
+    maintained.refs.update('refs/heads/main', tip, expected=None)
+    gitdx.apply_maintenance(maintained, gitdx.plan_maintenance(maintained, grace_seconds=0), prune=True)
+    backup = gitdx.backup_repository(maintained, root.parent/'backup.git', writer_guard=nullcontext())
+    if gitdx.verify_backup(backup.git_dir).refs.resolve().oid != tip:
+        raise RuntimeError('no-Git maintenance/backup failed')
     if repo.object_format!=format:raise RuntimeError('native repository format mismatch')
     tables=Repository.open(spec['reftable']['root'])
     if tables.refs.resolve().oid!=ObjectId(spec['tip'],format):raise RuntimeError('reftable HEAD mismatch')
@@ -431,6 +442,9 @@ def qualify(args):
     import test_reftable
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_reftable))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('reftable qualification failed or skipped')
+    import test_maintenance
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_maintenance))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('maintenance qualification failed or skipped')
     import test_upload_pack
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_upload_pack))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('upload-pack qualification failed or skipped')
