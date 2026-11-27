@@ -33,6 +33,7 @@ CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs'
  'reftable-native','reftable-corruption','reftable-no-git',
  'upload-pack-native','upload-pack-policy','upload-pack-no-git',
  'reftable-write-native','reftable-write-atomic','reftable-write-recovery','reftable-write-no-git',
+ 'maintenance-native','maintenance-recovery','maintenance-concurrency','maintenance-no-git',
  'translation-native','translation-policy','translation-no-git')
 if confined_storage_supported():CHECKS+=('ingestion-confinement',)
 CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'storage.delta-ofs-ref',
@@ -41,7 +42,7 @@ CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'stora
  'transfer.fetch-local-http', 'protocol.push-records', 'transfer.push-local', 'transfer.push-http',
  'worktree.merge-two-parent', 'worktree.reset-restore', 'receive.quarantine-policy',
  'refs.coordinated-multi-update', 'receive.ingestion-validation','repository.reftable','protocol.upload-pack',
- 'refs.reftable-write')
+ 'refs.reftable-write', 'storage.maintenance')
 if confined_storage_supported():CAPABILITIES+=('receive.untrusted-sha256',)
 
 
@@ -128,6 +129,15 @@ def make_fixture(root,format):
 def runtime(spec):
     if os.environ.get('PATH')!='':raise RuntimeError('runtime worker requires Git absent from PATH')
     root=Path(spec['root']);repo=Repository.open(root);format=ObjectFormat(spec['format'])
+    from contextlib import nullcontext
+    maintained = Repository.init(root.parent/'maintained.git', bare=True, object_format=format)
+    tree = maintained.objects.write(gitdx.Tree().to_raw())
+    tip = maintained.objects.write(Commit.create(tree, author=IDENTITY, committer=IDENTITY, message=b'maintenance').to_raw())
+    maintained.refs.update('refs/heads/main', tip, expected=None)
+    gitdx.apply_maintenance(maintained, gitdx.plan_maintenance(maintained, grace_seconds=0), prune=True)
+    backup = gitdx.backup_repository(maintained, root.parent/'backup.git', writer_guard=nullcontext())
+    if gitdx.verify_backup(backup.git_dir).refs.resolve().oid != tip:
+        raise RuntimeError('no-Git maintenance/backup failed')
     translated = Repository.init(root.parent/'translated.git', bare=True,
         object_format=ObjectFormat.SHA256 if format is ObjectFormat.SHA1 else ObjectFormat.SHA1)
     reverse = Repository.init(root.parent/'reverse.git', bare=True, object_format=format)
@@ -449,6 +459,9 @@ def qualify(args):
     import test_reftable_writer
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_reftable_writer))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('reftable writer qualification failed or skipped')
+    import test_maintenance
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_maintenance))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('maintenance qualification failed or skipped')
     import test_translation
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_translation))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('translation qualification failed or skipped')

@@ -67,6 +67,10 @@ qualification targets; server handlers and public hosting remain later milestone
 
 Source development does not imply a published package or deployed service.
 
+[Maintenance and backup](docs/maintenance.md) provide bounded bare-store fsck
+plans, retain-all repacking, recoverable loose-duplicate pruning and verified
+independent snapshots under an explicit writer-exclusion guard.
+
 [Isolated graph translation](docs/translation.md) provides explicit unsigned
 SHA-1/SHA-256 graph conversion with verified, persistent SQLite mappings.
 Repository migration and cross-format transfer remain separate policies.

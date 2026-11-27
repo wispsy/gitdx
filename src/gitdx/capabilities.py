@@ -26,6 +26,7 @@ _PROFILES=(
     ('storage.loose', 'supported', 'Verified loose objects and immutable writes', ('write-after-gc',)),
     ('storage.pack-index-v2', 'supported', 'Indexed native packs after Git gc', ('packed-read',)),
     ('storage.delta-ofs-ref', 'supported', 'Bounded indexed OFS and REF deltas', ('delta-ofs','delta-ref')),
+    ('storage.maintenance', 'supported', 'Bounded bare files-store inspection, retain-all repack, recoverable loose-duplicate pruning and quiescent verified backup', ('maintenance-native','maintenance-recovery','maintenance-concurrency','maintenance-no-git')),
     ('refs.files-packed', 'supported', 'Loose/packed refs with single-ref CAS', ('packed-refs','ref-cas')),
     ('refs.coordinated-multi-update', 'supported', 'All-value CAS under deterministic files-ref locks with explicit rollback/finalize recovery; no atomic native visibility', ('refs-transaction-native','refs-transaction-fault','refs-transaction-contention','refs-transaction-no-git')),
     ('worktree.index-stage-status', 'supported', 'Portable index, add and status', ('write-after-gc','native-status')),

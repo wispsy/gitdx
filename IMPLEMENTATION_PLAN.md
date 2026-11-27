@@ -10,6 +10,16 @@ later native edits or stealing lockfiles. Default repository mutations remain
 read-only; untrusted/hosted writes and retired-table deletion remain separate.
 See [reftable storage](docs/reftable.md) for bounds and platform qualification.
 
+## DX-27 maintenance profile (27 November 2026)
+
+Bare files-ref repositories support bounded connectivity/hash inspection,
+retain-all repacking and grace-selected loose-duplicate pruning with restartable
+checkpoints. Online maintenance preserves every inventoried object and all old
+packs; unreachable packed-object expiry remains outside this conservative
+profile. Independent verified backups require caller-owned writer exclusion and
+include refs, HEAD, reflogs and complete retained graphs, without copying hooks
+or configuration. See [maintenance](docs/maintenance.md) for the exact contract.
+
 ## DX-29 isolated translation (27 November 2026)
 
 The explicit `GraphTranslator` API translates complete unsigned graphs between
