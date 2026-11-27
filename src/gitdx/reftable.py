@@ -66,6 +66,9 @@ class Reftable:
     min_update: int
     max_update: int
     refs: tuple[tuple[str,object],...]
+    # Encoded log values retain native identity/message/timestamp bytes exactly.
+    logs: tuple[tuple[bytes,int,bytes],...] = ()
+    ref_updates: tuple[tuple[str,int],...] = ()
 
     @classmethod
     def from_bytes(cls,data,format=ObjectFormat.SHA1,*,limits=None,check=None):
@@ -91,7 +94,7 @@ class Reftable:
         if bool(obj_pos)!=bool(obj_width) or obj_width and not 2<=obj_width<=min(31,format.digest_size):
             raise InvalidReftable('invalid reftable object abbreviation width')
         blocks={};groups={'r':[],'o':[],'g':[]};indexes={'r':[],'o':[],'g':[]}
-        refs=[];cursor=header;group=None;phase=-1;records=0;log_bytes=0
+        refs=[];logs=[];ref_updates=[];cursor=header;group=None;phase=-1;records=0;log_bytes=0
         while cursor<end:
             check();position=0 if cursor==header else cursor;skip=header if position==0 else 0
             if cursor+4>end:raise InvalidReftable('truncated reftable block header')
@@ -147,6 +150,7 @@ class Reftable:
                         value=SymbolicRef(target)
                     else:raise InvalidReftable('reserved reftable reference type')
                     refs.append((name,value))
+                    ref_updates.append((name,update))
                 elif kind=='i':
                     if value_type:raise InvalidReftable('reserved index record type')
                     value=source.varint()
@@ -160,6 +164,7 @@ class Reftable:
                         if i and not delta:raise InvalidReftable('object block positions repeat')
                         value.append(last)
                 else:
+                    log_start=source.pos
                     if len(key)<10 or key[-9]!=0:raise InvalidReftable('invalid reftable log key')
                     _name(key[:-9]);update=0xffffffffffffffff-int.from_bytes(key[-8:],'big')
                     if update>maximum:raise InvalidReftable('log update index exceeds header maximum')
@@ -168,6 +173,7 @@ class Reftable:
                         source.take(2*format.digest_size)
                         for _ in range(2):source.take(source.varint())
                         source.varint();source.take(2);source.take(source.varint())
+                    logs.append((key,value_type,block[log_start:source.pos]))
                     value=None
                 keys.append(key);values.append(value);prior=key
             if not set(restarts)<=restart_records:raise InvalidReftable('restart points do not identify complete keys')
@@ -213,7 +219,7 @@ class Reftable:
         for p in groups['o']:
             for positions in blocks[p][3]:
                 if any(pos not in ref_positions for pos in positions):raise InvalidReftable('object index points outside reference blocks')
-        return cls(format,minimum,maximum,tuple(refs))
+        return cls(format,minimum,maximum,tuple(refs),tuple(logs),tuple(ref_updates))
 
 
 class ReftableRefStore:
@@ -269,5 +275,10 @@ class ReftableRefStore:
         raise InvalidRef('symbolic reftable chain exceeds supported depth')
 
     def _readonly(self,*args,**kwargs):raise UnsupportedFormat('reftable mutations require a separately qualified writer')
+
+    def writer(self):
+        """Select the explicit local writer; default repository mutation stays refused."""
+        from .reftable_writer import ReftableWriter
+        return ReftableWriter(self)
 
     update=delete=set_symbolic=detach_head=repair_reflog=transaction=recover_transaction=packed=_readonly

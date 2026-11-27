@@ -90,7 +90,9 @@ outcomes, validated single-ref compare-and-swap and
 explicit unborn, symbolic and detached HEAD handling through `Repository.refs`.
 
 [Read-only reftable storage](docs/reftable.md) selects native v1/v2 table stacks,
-exact-case references and the same history interfaces; mutations remain refused.
+exact-case references and the same history interfaces. Its explicit local writer
+adds atomic stack batches, log-preserving compaction and guarded recovery;
+ordinary repository mutations retain the read-only default.
 
 [Index v2 transactions](docs/index.md) expose format-aware staging snapshots
 and exclusive, explicitly committed writes through `Repository.index`.
