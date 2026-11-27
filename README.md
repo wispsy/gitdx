@@ -53,6 +53,9 @@ content, explicit tracked overwrite and guarded journal recovery.
 [Protocol framing](docs/protocol.md) adds bounded packet/sideband streams,
 v0/v1 discovery and v2 command boundaries with explicit same-format negotiation.
 
+[Upload-pack sessions](docs/upload-pack.md) provide bounded read-only v0/v1/v2
+discovery and complete-pack fetch responses for an already authorized host.
+
 [Fetch/clone](docs/transfers.md) uses explicit local or smart-HTTP transports,
 private object quarantine, validated graph closures and expected-old tracking
 refs. HTTPS verifies certificates; authorization is explicitly selected.

@@ -16,7 +16,8 @@ import gitdx
 from gitdx import (Blob, Commit, DirectRef, GitdxError, Index, InvalidIndex, ObjectFormat, ObjectId, PackFile, PackIndex, PushState,
                    PushUpdate, QualificationEvidence, RefConflict, Repository, SmartHTTPTransport, TransferLimits,
                    UnsupportedFormat, capability_report, implementation_digest, runtime_toolchain, LocalTransport,
-                   PushCommand, ReceivePolicy, RefChange)
+                   PushCommand, ReceivePolicy, RefChange, UploadPack, encode_legacy_request,
+                   encode_v2_command, unpack_objects, PacketDecoder, parse_advertisement, negotiate, Capability)
 
 IDENTITY=b'Qualification <qualification@example.invalid> 1700000000 +0000'
 CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs', 'ref-cas', 'write-after-gc',
@@ -27,13 +28,13 @@ CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs'
  'merge-conflicts', 'merge-recovery', 'merge-no-git', 'reset-native', 'restore-native',
  'reset-restore-recovery', 'reset-restore-no-git', 'receive-native', 'receive-policy', 'receive-fault',
  'receive-no-git', 'refs-transaction-native', 'refs-transaction-fault', 'refs-transaction-contention',
- 'refs-transaction-no-git')
+ 'refs-transaction-no-git','upload-pack-native','upload-pack-policy','upload-pack-no-git')
 CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'storage.delta-ofs-ref',
  'refs.files-packed', 'worktree.index-stage-status', 'worktree.checkout', 'history.commit',
  'config.local', 'diff.trees-bytes', 'history.revisions', 'history.ancestry',
  'transfer.fetch-local-http', 'protocol.push-records', 'transfer.push-local', 'transfer.push-http',
  'worktree.merge-two-parent', 'worktree.reset-restore', 'receive.quarantine-policy',
- 'refs.coordinated-multi-update')
+ 'refs.coordinated-multi-update','protocol.upload-pack')
 
 
 def git(path,*args,data=None):
@@ -150,6 +151,7 @@ def runtime(spec):
     runtime_reset_restore(root.parent/'reset-profile',format)
     transfers=runtime_transfers(repo,spec,new)
     runtime_receive(repo,root.parent,ObjectId(str(new),format))
+    runtime_upload_pack(repo,ObjectId(str(new),format))
     print(json.dumps({'new':str(new),'checks':CHECKS,'transfers':transfers}))
 
 
@@ -188,6 +190,18 @@ def runtime_reset_restore(path,format):
     repo.apply_restore(repo.plan_restore('file',source=old,staged=True,worktree=False))
     repo.apply_reset(repo.plan_reset(old,mode='mixed',expected_head=new,discard_staged=True))
     if file.read_bytes()!=b'new' or repo.refs.resolve().oid!=old:raise RuntimeError('no-Git mixed reset mismatch')
+
+
+def runtime_upload_pack(repo,new):
+    for version in (0,1,2):
+        decoder=PacketDecoder();ad=parse_advertisement(decoder.feed(UploadPack(repo).advertise(version)));decoder.finish()
+        if version==2:
+            request=encode_v2_command(negotiate(ad,repo.object_format,command=b'fetch'),(b'want '+str(new).encode(),b'done'))
+        else:
+            request=encode_legacy_request(ad,repo.object_format,(new,),capabilities=(Capability(b'side-band-64k'),))
+        reply=UploadPack(repo).respond(request,version);decoder=PacketDecoder();packets=decoder.feed(reply);decoder.finish()
+        pack=b''.join(p.data[1:] for p in packets[1:-1])
+        if dict(unpack_objects(pack,repo.object_format)).get(new)!=repo.objects.read(new):raise RuntimeError('upload-pack no-Git graph mismatch')
 
 
 def runtime_receive(repo,root,new):
@@ -381,6 +395,9 @@ def qualify(args):
     import test_ref_transaction
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_ref_transaction))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('ref transaction qualification failed or skipped')
+    import test_upload_pack
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_upload_pack))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('upload-pack qualification failed or skipped')
     with tempfile.TemporaryDirectory() as tmp:
         root=Path(tmp)
         for format in ObjectFormat:
