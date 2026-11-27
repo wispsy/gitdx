@@ -32,7 +32,8 @@ CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs'
  'refs-transaction-no-git', 'ingestion-policy', 'ingestion-native', 'ingestion-no-git',
  'reftable-native','reftable-corruption','reftable-no-git',
  'upload-pack-native','upload-pack-policy','upload-pack-no-git',
- 'maintenance-native','maintenance-recovery','maintenance-concurrency','maintenance-no-git')
+ 'maintenance-native','maintenance-recovery','maintenance-concurrency','maintenance-no-git',
+ 'translation-native','translation-policy','translation-no-git')
 if confined_storage_supported():CHECKS+=('ingestion-confinement',)
 CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'storage.delta-ofs-ref',
  'refs.files-packed', 'worktree.index-stage-status', 'worktree.checkout', 'history.commit',
@@ -136,6 +137,13 @@ def runtime(spec):
     backup = gitdx.backup_repository(maintained, root.parent/'backup.git', writer_guard=nullcontext())
     if gitdx.verify_backup(backup.git_dir).refs.resolve().oid != tip:
         raise RuntimeError('no-Git maintenance/backup failed')
+    translated = Repository.init(root.parent/'translated.git', bare=True,
+        object_format=ObjectFormat.SHA256 if format is ObjectFormat.SHA1 else ObjectFormat.SHA1)
+    reverse = Repository.init(root.parent/'reverse.git', bare=True, object_format=format)
+    tip = repo.refs.resolve().oid
+    converted = gitdx.GraphTranslator(repo, translated).translate((tip,))
+    if gitdx.GraphTranslator(translated, reverse).translate(converted.roots).roots != (tip,):
+        raise RuntimeError('no-Git graph translation roundtrip failed')
     if repo.object_format!=format:raise RuntimeError('native repository format mismatch')
     tables=Repository.open(spec['reftable']['root'])
     if tables.refs.resolve().oid!=ObjectId(spec['tip'],format):raise RuntimeError('reftable HEAD mismatch')
@@ -445,6 +453,9 @@ def qualify(args):
     import test_maintenance
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_maintenance))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('maintenance qualification failed or skipped')
+    import test_translation
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_translation))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('translation qualification failed or skipped')
     import test_upload_pack
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_upload_pack))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('upload-pack qualification failed or skipped')
