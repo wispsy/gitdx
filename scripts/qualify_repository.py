@@ -28,14 +28,15 @@ CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs'
  'merge-conflicts', 'merge-recovery', 'merge-no-git', 'reset-native', 'restore-native',
  'reset-restore-recovery', 'reset-restore-no-git', 'receive-native', 'receive-policy', 'receive-fault',
  'receive-no-git', 'refs-transaction-native', 'refs-transaction-fault', 'refs-transaction-contention',
- 'refs-transaction-no-git', 'ingestion-policy', 'ingestion-native', 'ingestion-no-git')
+ 'refs-transaction-no-git', 'ingestion-policy', 'ingestion-native', 'ingestion-no-git',
+ 'reftable-native','reftable-corruption','reftable-no-git')
 if confined_storage_supported():CHECKS+=('ingestion-confinement',)
 CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'storage.delta-ofs-ref',
  'refs.files-packed', 'worktree.index-stage-status', 'worktree.checkout', 'history.commit',
  'config.local', 'diff.trees-bytes', 'history.revisions', 'history.ancestry',
  'transfer.fetch-local-http', 'protocol.push-records', 'transfer.push-local', 'transfer.push-http',
  'worktree.merge-two-parent', 'worktree.reset-restore', 'receive.quarantine-policy',
- 'refs.coordinated-multi-update', 'receive.ingestion-validation')
+ 'refs.coordinated-multi-update', 'receive.ingestion-validation','repository.reftable')
 if confined_storage_supported():CAPABILITIES+=('receive.untrusted-sha256',)
 
 
@@ -109,7 +110,12 @@ def make_fixture(root,format):
         if not any(len(line.split())==7 for line in verified.splitlines()):raise RuntimeError('native delta fixture was not generated')
         indexed.append({'pack':str(path.with_suffix('.pack')),'index':str(path.with_suffix('.idx')),
                         'kind':6 if ofs else 7,'objects':[(str(oid),hashlib.sha256(raw.data).hexdigest()) for oid,raw in zip(ids,raws)]})
+    table_root=root/'reftable-native.git';git(root,'clone','--bare','--no-local',str(source),str(table_root))
+    git(table_root,'refs','migrate','--ref-format=reftable')
+    for name in ('Foo','foo','CON'):git(table_root,'update-ref','refs/heads/'+name,tip)
+    table_refs=git(table_root,'for-each-ref','--format=%(refname) %(objectname)').decode().splitlines()
     return {'root':str(source),'format':format.value,'tip':tip,'old':old,'objects':objects,'indexed':indexed,
+            'reftable':{'root':str(table_root),'refs':table_refs},
             'revisions':revisions,'bases':[oid.decode() for oid in bases],'left':left,'right':right,'disconnected':other,
             'diff_old':diff_old,'diff_new':diff_new,'diffs':diffs}
 
@@ -118,6 +124,13 @@ def runtime(spec):
     if os.environ.get('PATH')!='':raise RuntimeError('runtime worker requires Git absent from PATH')
     root=Path(spec['root']);repo=Repository.open(root);format=ObjectFormat(spec['format'])
     if repo.object_format!=format:raise RuntimeError('native repository format mismatch')
+    tables=Repository.open(spec['reftable']['root'])
+    if tables.refs.resolve().oid!=ObjectId(spec['tip'],format):raise RuntimeError('reftable HEAD mismatch')
+    actual=[name+' '+str(value.oid) for name,value in tables.refs.snapshot()]
+    if actual!=spec['reftable']['refs']:raise RuntimeError('reftable snapshot mismatch')
+    try:tables.refs.update('refs/heads/main',ObjectId(spec['tip'],format),expected=None)
+    except UnsupportedFormat:pass
+    else:raise RuntimeError('reftable write accepted')
     for hex,kind,digest in spec['objects']:
         raw=repo.objects.read(ObjectId(hex,format))
         if raw.kind.value!=kind or hashlib.sha256(raw.data).hexdigest()!=digest:raise RuntimeError('packed native object mismatch')
@@ -400,6 +413,9 @@ def qualify(args):
     suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in cases)
     result=unittest.TextTestRunner(verbosity=1).run(suite)
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('ingestion qualification failed or skipped')
+    import test_reftable
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_reftable))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('reftable qualification failed or skipped')
     with tempfile.TemporaryDirectory() as tmp:
         root=Path(tmp)
         for format in ObjectFormat:

@@ -23,7 +23,7 @@ gitdx capabilities --evidence /selected/qualification.json
 
 Required repository profiles fail before local operations rather than triggering
 helpers or approximating data. Alternates, shallow/commondir metadata, unknown
-required formats/extensions and reftable are unsupported. Promisor remote config,
+required formats/extensions are unsupported; [reftable](reftable.md) selects a bounded read-only backend. Promisor remote config,
 partial-clone filters and pack `.promisor` markers are refused without lazy fetch;
 open/index/ref/worktree checks repeat this policy. Filesystem checks assume the
 documented owner-controlled profile. The registry does not imply production Git
@@ -37,7 +37,7 @@ history, annotated tags, index and packed refs, runs native gc, then executes
 Gitdx packed-object/delta/ref/index/status/commit/checkout operations in a child
 with Git absent from PATH. Separate native REF/OFS fixtures must contain actual
 deltas. Native Git then verifies the new commit, worktree status and full object
-graph. Unknown extensions/formats, reftable, alternates, shallow, configured and
+graph. Unknown extensions/formats, incomplete reftable metadata, alternates, shallow, configured and
 marker-only promisor profiles, and a real native partial clone must refuse
 without changing file bytes or modes.
 
@@ -77,7 +77,7 @@ atomic visibility remains unsupported.
 
 | Profile | Supported scope exercised | Explicitly refused/separate scope |
 | --- | --- | --- |
-| Repository/storage | Same-format SHA-1 and SHA-256, files/packed refs, index v2, native gc, indexed REF/OFS deltas, native-written and Gitdx-written objects | Alternates, shallow/promisor/filter metadata, linked worktrees/commondir, unknown required formats, reftable |
+| Repository/storage | Same-format SHA-1 and SHA-256, files/packed refs, read-only reftable, index v2, native gc, indexed REF/OFS deltas, native-written and Gitdx-written objects | Alternates, shallow/promisor/filter metadata, linked worktrees/commondir, unknown required formats, reftable mutations |
 | Local APIs | Stage/status/commit/checkout, explicit-tree byte diffs, typed revision subset, all two-root merge bases | Non-v2/split/sparse/unknown required indexes, graft/replacement history; broader revision syntax remains unsupported |
 | Fetch/clone | Local and smart HTTP; legacy 0/1 and protocol v2; complete packs with same-format negotiation | Cross-format conversion, shallow/filter requests, haves/incremental negotiation, implicit helpers |
 | Push | Expected-old branch/tag proposals; report-status v1/v2; local individual CAS and native advertised HTTP atomic mode | Local atomic visibility, signed/options/rewritten pushes, production server routes |

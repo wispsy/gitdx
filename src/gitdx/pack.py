@@ -215,6 +215,14 @@ class RepositoryObjectStore(LooseObjectStore):
         from .delta import resolve_delta_chain
         return resolve_delta_chain(oid,_PackLookup(self).locate,self.pack_limits)
 
+    def write(self,raw,**options):
+        from .config import parse_config
+        config=self.path.parent/'config'
+        try:selected=parse_config(read_file(self.path.parent,config,1024*1024))
+        except FileNotFoundError:selected=None
+        if selected is not None and selected.ref_storage!='files':raise UnsupportedFormat('reftable repository writes are not qualified')
+        return super().write(raw,**options)
+
 
 class _PackLookup:
     def __init__(self,store):

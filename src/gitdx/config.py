@@ -52,6 +52,9 @@ class RepositoryConfig:
     symlinks: bool = True
     values: Config = field(default_factory=Config, repr=False)
 
+    @property
+    def ref_storage(self):return (self.values.get('extensions','refstorage','files') or '').lower()
+
 
 def _value(lines, index, text):
     result = [];pending = "";quoted = False;cursor = 0
@@ -157,7 +160,7 @@ def parse_config(data: bytes) -> RepositoryConfig:
     extensions = {e.name:e.value for e in values.entries if e.section=="extensions"}
     if any(k not in ("objectformat","refstorage") for k in extensions):raise UnsupportedFormat("unsupported required repository extension")
     if extensions and version!="1":raise UnsupportedFormat("repository extensions require format version 1")
-    if (extensions.get("refstorage","files") or "").lower()!="files":raise UnsupportedFormat("only files reference storage is supported")
+    if (extensions.get("refstorage","files") or "").lower() not in ('files','reftable'):raise UnsupportedFormat("unsupported reference storage")
     try:format = ObjectFormat((extensions.get("objectformat","sha1") or "").lower())
     except ValueError as error:raise UnsupportedFormat("unsupported repository object format") from error
     if values.get_all("core","worktree") or values.boolean("core","sparsecheckout"):
