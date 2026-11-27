@@ -114,6 +114,9 @@ def parse_push_request(data,ad,format,*,limits=None):
     if not packets:raise ProtocolError('empty push request is not an update batch')
     first,separator,rawcaps=_text(packets[0],limits,nul=True).partition(b'\0')
     if not separator or b'\0' in rawcaps:raise ProtocolError('push capabilities require first command NUL')
+    # Native send-pack puts one separating SP immediately after the NUL.
+    # Accept that framing without permitting empty interior capability tokens.
+    rawcaps=rawcaps.removeprefix(b' ')
     caps=_caps(rawcaps.split(b' ') if rawcaps else (),limits)
     negotiated=_push_caps(ad,format,caps,limits);commands=[]
     for i,packet in enumerate(packets):

@@ -5,7 +5,7 @@ import unittest
 
 from gitdx import (Advertisement, AdvertisedRef, Capability, CommandStatus, FLUSH, ObjectFormat, ObjectFormatMismatch,
                    ObjectId, Packet, PacketDecoder, ProtocolError, ProtocolLimitExceeded, ProtocolLimits, PushCommand,
-                   ReportOption, ReportStatus, Repository, encode_push_request, encode_report_status, negotiate_push,
+                   ReportOption, ReportStatus, Repository, encode_packet, encode_push_request, encode_report_status, negotiate_push,
                    parse_advertisement, parse_push_request, parse_report_status)
 import test_objects as oracle
 from test_checkout_plan import commit_tree
@@ -21,6 +21,20 @@ def advertisement(format=ObjectFormat.SHA1):
 
 
 class PushProtocolTests(unittest.TestCase):
+    def test_native_leading_capability_separator_preserves_commands_and_pack_boundaries(self):
+        for format in ObjectFormat:
+            for version in (1, 2):
+                with self.subTest(format=format, version=version):
+                    oid = ObjectId('a'*format.hex_size, format);ad = advertisement(format)
+                    command = PushCommand(b'refs/heads/main', None, oid)
+                    negotiated = negotiate_push(ad, format, report_version=version, sideband=False)
+                    canonical = encode_push_request(negotiated, (command,), b'PACK\0fixture')
+                    end = int(canonical[:4], 16);payload = canonical[4:end]
+                    native = encode_packet(Packet(data=payload.replace(b'\0', b'\0 ', 1)))+canonical[end:]
+                    self.assertEqual(parse_push_request(native, ad, format), parse_push_request(canonical, ad, format))
+                    malformed = encode_packet(Packet(data=payload.replace(b'\0', b'\0  ', 1)))+canonical[end:]
+                    with self.assertRaises(ProtocolError): parse_push_request(malformed, ad, format)
+
     def test_command_create_update_delete_and_raw_pack_boundaries_both_formats(self):
         for format in ObjectFormat:
             oid=ObjectId('a'*format.hex_size,format);other=ObjectId('b'*format.hex_size,format);ad=advertisement(format)
