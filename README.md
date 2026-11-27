@@ -1,7 +1,10 @@
 # gitdx
 
-Initial PyPI preview: **0.1.0a1**. Released behavior and current development are
-tracked in [Wispsy Releases](https://github.com/orgs/wispsy/projects/31).
+Developer preview: **0.1.0a2**. [Preview notes](docs/releases.md) describe the
+selected scope. Production qualification is unfinished. Hosted writes remain
+SHA-256-only on qualified Linux storage; trusted local work and reads support
+both native hashes. [Wispsy Releases](https://github.com/orgs/wispsy/projects/31)
+tracks publication and current development.
 
 A standalone, standard-library Python Git engine with Git-compatible storage and protocols.
 
@@ -25,11 +28,11 @@ per-ref outcomes through explicit local or smart-HTTP destinations. Atomic
 requests require peer advertisement and consistent reports; local refs remain
 independent transactions.
 
-Current source adds [quarantined receive transactions](docs/receive.md) with
+This preview includes [quarantined receive transactions](docs/receive.md) with
 explicit object/ref policy, complete graph validation and interruption outcomes.
 [Explicit ingestion profiles](docs/ingestion.md) retain trusted local SHA-1 and
 SHA-256 support and select SHA-256-only untrusted receive on qualified Linux
-storage. Public HTTP receive is a separate gate; the published preview is unchanged.
+storage. Host authorization and HTTP routing remain caller-owned.
 
 [Coordinated ref transactions](docs/ref-transactions.md) validate every expected
 old value under deterministic locks, with explicit prepared/committed recovery.
@@ -41,7 +44,7 @@ quoting/continuations and explicitly confined include inspection.
 [Commit/history](docs/history.md) builds staged trees with explicit identities
 and expected-HEAD publication, plus bounded parent-order history and ref listings.
 
-[Two-parent merge plans](docs/merging.md) on current source provide bounded
+[Two-parent merge plans](docs/merging.md) provide bounded
 text merges, conflict index stages, explicit commit resolution, guarded abort
 and process-interruption recovery.
 [Reset/restore plans](docs/reset-restore.md) separate ref, index and worktree
@@ -65,7 +68,7 @@ refs. HTTPS verifies certificates; authorization is explicitly selected.
 
 Development starts with the [implementation plan](IMPLEMENTATION_PLAN.md) and
 [shared Project](https://github.com/orgs/wispsy/projects/30). The roadmap records
-qualification targets; server handlers and public hosting remain later milestones.
+qualification targets; production hosting remains a later milestone.
 
 Source development does not imply a published package or deployed service.
 

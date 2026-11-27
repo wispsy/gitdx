@@ -1,6 +1,6 @@
 [project]
 name = "gitdx"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "A standalone, standard-library Python Git engine"
 license = "MIT"
 license-files = ["LICENSE"]
