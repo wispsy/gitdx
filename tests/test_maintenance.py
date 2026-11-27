@@ -122,6 +122,10 @@ class MaintenanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp);repo = Repository.init(root/'source', bare=True)
             tip = commit_tree(repo, {b'file': b'data'});repo.refs.update('refs/heads/main', tip, expected=None)
+            if os.name == 'posix':
+                alias = root/'source-alias';alias.symlink_to(repo.git_dir, target_is_directory=True)
+                with self.assertRaises(ValueError): backup_repository(repo, alias/'nested', writer_guard=nullcontext())
+                self.assertFalse((repo.git_dir/'nested').exists())
             (repo.git_dir/'hooks').mkdir();(repo.git_dir/'hooks/post-update').write_bytes(b'never execute')
             backup = backup_repository(repo, root/'backup', writer_guard=nullcontext())
             self.assertFalse((backup.git_dir/'hooks').exists())
