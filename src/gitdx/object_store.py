@@ -9,7 +9,7 @@ from typing import Protocol
 import zlib
 
 from .errors import GitdxError, InvalidObject
-from .filesystem import check_path, read_file
+from .filesystem import check_path, read_file, storage_is_dir
 from .confined_fs import active
 from .objects import ObjectFormat, ObjectId, RawObject
 
@@ -56,7 +56,7 @@ class LooseObjectStore:
         self.format = ObjectFormat(format)
         self.limits = limits or StoreLimits()
         check_path(self.path, self.path)
-        if not self.path.is_dir():
+        if not storage_is_dir(self.path):
             raise NotADirectoryError("object store must be an existing directory")
 
     def object_path(self, oid: ObjectId) -> Path:

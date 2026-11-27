@@ -5,7 +5,7 @@ import os
 import re
 
 from .errors import GitdxError, InvalidObject, UnsupportedFormat
-from .filesystem import check_path, read_file
+from .filesystem import check_path, read_file, storage_exists
 from .names import validate_refname
 from .object_store import ObjectLimitExceeded
 from .objects import Commit, ObjectId, ObjectType, Tag
@@ -208,5 +208,5 @@ def check_history_profile(repo):
     replacement = repo.refs.snapshot('refs/replace/')
     for relative in ('info/grafts', 'refs/replace'):
         path = repo.git_dir / relative;check_path(repo.git_dir, path)
-        if path.exists():raise UnsupportedFormat('replacement and graft history is unsupported')
+        if storage_exists(path):raise UnsupportedFormat('replacement and graft history is unsupported')
     if replacement:raise UnsupportedFormat('replacement history is unsupported')

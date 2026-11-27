@@ -99,6 +99,20 @@ class DescriptorStorageTests(unittest.TestCase):
             with self.assertRaises(ConfinementError):storage.write(self.root/'..'/'escape',b'no')
         self.assertFalse((self.outside/'file').exists())
 
+    def test_full_initial_and_fast_forward_receive_avoid_path_based_metadata_probes(self):
+        source=Repository.init(self.root/'source',bare=True,object_format='sha256')
+        target=Repository.init(self.root/'target',bare=True,object_format='sha256')
+        old=commit_tree(source,{b'file':b'old'});new=commit_tree(source,{b'file':b'new'},parents=(old,))
+        first=source.pack((old,)).pack;second=source.pack((new,)).pack
+        policy=ReceivePolicy(ingestion=IngestionProfile.UNTRUSTED)
+        with patch.object(Path,'exists',side_effect=AssertionError('path-based exists')),\
+             patch.object(Path,'is_dir',side_effect=AssertionError('path-based directory probe')),\
+             patch.object(Path,'stat',side_effect=AssertionError('path-based stat')),\
+             patch.object(Path,'lstat',side_effect=AssertionError('path-based lstat')):
+            self.assertTrue(target.receive((PushCommand(b'refs/heads/main',None,old),),first,policy=policy,coordinated=True).complete)
+            self.assertTrue(target.receive((PushCommand(b'refs/heads/main',old,new),),second,policy=policy,coordinated=True).complete)
+        self.assertEqual(target.refs.resolve().oid,new)
+
     def test_read_parent_replacement_cannot_follow_the_outside_symlink(self):
         parent=self.root/'nested';parent.mkdir();(parent/'file').write_bytes(b'inside')
         (self.outside/'file').write_bytes(b'outside');original=os.open;moved=self.root/'retained'
