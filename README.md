@@ -67,6 +67,10 @@ qualification targets; server handlers and public hosting remain later milestone
 
 Source development does not imply a published package or deployed service.
 
+[Isolated graph translation](docs/translation.md) provides explicit unsigned
+SHA-1/SHA-256 graph conversion with verified, persistent SQLite mappings.
+Repository migration and cross-format transfer remain separate policies.
+
 The initial Python API provides SHA-1/SHA-256 identities and byte-preserving
 blob, tree, commit and annotated-tag codecs, without runtime dependencies or
 calls to the Git executable:
