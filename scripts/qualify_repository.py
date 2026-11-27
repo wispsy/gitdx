@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 import gitdx
@@ -33,7 +34,9 @@ CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs'
  'reftable-native','reftable-corruption','reftable-no-git',
  'upload-pack-native','upload-pack-policy','upload-pack-no-git',
  'reftable-write-native','reftable-write-atomic','reftable-write-recovery','reftable-write-no-git',
- 'translation-native','translation-policy','translation-no-git')
+ 'maintenance-native','maintenance-recovery','maintenance-concurrency','maintenance-no-git',
+ 'translation-native','translation-policy','translation-no-git',
+ 'hosting-api-public','hosting-concurrent','hosting-budget','hosting-no-git')
 if confined_storage_supported():CHECKS+=('ingestion-confinement',)
 CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'storage.delta-ofs-ref',
  'refs.files-packed', 'worktree.index-stage-status', 'worktree.checkout', 'history.commit',
@@ -41,7 +44,7 @@ CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'stora
  'transfer.fetch-local-http', 'protocol.push-records', 'transfer.push-local', 'transfer.push-http',
  'worktree.merge-two-parent', 'worktree.reset-restore', 'receive.quarantine-policy',
  'refs.coordinated-multi-update', 'receive.ingestion-validation','repository.reftable','protocol.upload-pack',
- 'refs.reftable-write')
+ 'refs.reftable-write', 'storage.maintenance', 'hosting.api-v1')
 if confined_storage_supported():CAPABILITIES+=('receive.untrusted-sha256',)
 
 
@@ -128,6 +131,15 @@ def make_fixture(root,format):
 def runtime(spec):
     if os.environ.get('PATH')!='':raise RuntimeError('runtime worker requires Git absent from PATH')
     root=Path(spec['root']);repo=Repository.open(root);format=ObjectFormat(spec['format'])
+    from contextlib import nullcontext
+    maintained = Repository.init(root.parent/'maintained.git', bare=True, object_format=format)
+    tree = maintained.objects.write(gitdx.Tree().to_raw())
+    tip = maintained.objects.write(Commit.create(tree, author=IDENTITY, committer=IDENTITY, message=b'maintenance').to_raw())
+    maintained.refs.update('refs/heads/main', tip, expected=None)
+    gitdx.apply_maintenance(maintained, gitdx.plan_maintenance(maintained, grace_seconds=0), prune=True)
+    backup = gitdx.backup_repository(maintained, root.parent/'backup.git', writer_guard=nullcontext())
+    if gitdx.verify_backup(backup.git_dir).refs.resolve().oid != tip:
+        raise RuntimeError('no-Git maintenance/backup failed')
     translated = Repository.init(root.parent/'translated.git', bare=True,
         object_format=ObjectFormat.SHA256 if format is ObjectFormat.SHA1 else ObjectFormat.SHA1)
     reverse = Repository.init(root.parent/'reverse.git', bare=True, object_format=format)
@@ -184,7 +196,50 @@ def runtime(spec):
     transfers=runtime_transfers(repo,spec,new)
     runtime_receive(repo,root.parent,ObjectId(str(new),format))
     runtime_upload_pack(repo,ObjectId(str(new),format))
-    print(json.dumps({'new':str(new),'checks':CHECKS,'transfers':transfers}))
+    measurements = runtime_hosting_budget(root.parent, format)
+    print(json.dumps({'new':str(new),'checks':CHECKS,'transfers':transfers,'hosting':measurements}))
+
+
+def runtime_hosting_budget(root, format):
+    """A bounded representative workload, executed in the no-helper worker."""
+    from contextlib import nullcontext
+    from gitdx import (PackWriteLimits, PackLimits, ReceiveLimits, TransferLimits, Tree, TreeEntry,
+                       apply_maintenance, plan_maintenance, backup_repository, verify_backup)
+    graph = PackWriteLimits(max_objects=128, max_edges=512, max_object_bytes=8192,
+        max_bytes=256*1024, max_pack_bytes=256*1024, max_index_bytes=8192)
+    intake = ReceiveLimits(transfer=TransferLimits(max_refs=8, max_wire_bytes=512*1024,
+        pack=PackLimits(max_objects=128, max_object_bytes=8192)), graph=graph)
+    source = Repository.init(root/'budget-source.git', bare=True, object_format=format)
+    destination = Repository.init(root/'budget-destination.git', bare=True, object_format=format)
+    times = {};start = time.perf_counter_ns();tip = None
+    for i in range(32):
+        blob = source.objects.write(Blob(b'x'*4096+str(i).encode()).to_raw())
+        tree = source.objects.write(Tree((TreeEntry(0o100644, b'file', blob),), format).to_raw())
+        tip = source.objects.write(Commit.create(tree, author=IDENTITY, committer=IDENTITY,
+            message=b'budget fixture', parents=(() if tip is None else (tip,))).to_raw())
+    bundle = source.pack((tip,), limits=graph)
+    times['build_pack_ms'] = (time.perf_counter_ns()-start)/1_000_000
+    profile = IngestionProfile.UNTRUSTED if format is ObjectFormat.SHA256 and confined_storage_supported() else IngestionProfile.TRUSTED_LOCAL
+    start = time.perf_counter_ns()
+    result = destination.receive((PushCommand(b'refs/heads/main', None, tip),), bundle.pack,
+        policy=ReceivePolicy(ingestion=profile), limits=intake, coordinated=True)
+    if not result.complete or result.atomic: raise RuntimeError('hosting budget receive contract failed')
+    times['receive_ms'] = (time.perf_counter_ns()-start)/1_000_000
+    start = time.perf_counter_ns()
+    apply_maintenance(destination, plan_maintenance(destination, grace_seconds=0, limits=graph), prune=True, limits=graph)
+    times['maintenance_ms'] = (time.perf_counter_ns()-start)/1_000_000
+    start = time.perf_counter_ns()
+    backup = backup_repository(destination, root/'budget-backup.git', writer_guard=nullcontext(), limits=graph)
+    if verify_backup(backup.git_dir, limits=graph).refs.resolve().oid != tip: raise RuntimeError('hosting budget backup mismatch')
+    times['backup_verify_ms'] = (time.perf_counter_ns()-start)/1_000_000
+    try: source.pack((tip,), limits=replace(graph, max_objects=1))
+    except gitdx.ObjectLimitExceeded: pass
+    else: raise RuntimeError('hosting workload escaped its object budget')
+    return {'format': format.value, 'ingestion': profile.value, 'commits': 32, 'objects': len(bundle.object_ids),
+            'pack_bytes': len(bundle.pack), 'observed_ms': times,
+            'budgets': {'graph_objects': 128, 'graph_edges': 512, 'object_bytes': 8192,
+                        'graph_bytes': 256*1024, 'wire_bytes': 512*1024, 'ref_commands': 8},
+            'timing_policy': 'observations only; no wall-clock service guarantee'}
 
 
 def runtime_merge(path,format):
@@ -455,12 +510,19 @@ def qualify(args):
     import test_reftable_writer
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_reftable_writer))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('reftable writer qualification failed or skipped')
+    import test_maintenance
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_maintenance))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('maintenance qualification failed or skipped')
     import test_translation
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_translation))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('translation qualification failed or skipped')
+    import test_hosting_profile
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_hosting_profile))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('hosting API/concurrency qualification failed or skipped')
     import test_upload_pack
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_upload_pack))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('upload-pack qualification failed or skipped')
+    measurements=[]
     with tempfile.TemporaryDirectory() as tmp:
         root=Path(tmp)
         for format in ObjectFormat:
@@ -470,6 +532,7 @@ def qualify(args):
             with http_fixture(folder) as (url,_),http_fixture(folder,mode='corrupt-pack') as (corrupt,_):
                 spec.update(http=url,corrupt=corrupt);specfile=folder/'runtime.json';specfile.write_text(json.dumps(spec))
                 result=run_worker(specfile);new=result['new']
+                measurements.append(result['hosting'])
                 if tuple(result['checks'])!=CHECKS:raise RuntimeError('incomplete runtime qualification')
                 if git(folder/'http-source.git','rev-parse','HEAD').strip().decode()!=result['transfers']['http']:
                     raise RuntimeError('native HTTP push ref mismatch')
@@ -483,6 +546,10 @@ def qualify(args):
     capability_report(selected)
     if args.output:
         destination=Path(args.output);destination.parent.mkdir(parents=True,exist_ok=True);destination.write_text(selected.to_json())
+        budget_report={'schema_version':1,'profile':'hosting-native/1','installation':args.profile,
+                       'implementation_digest':implementation_digest(),'toolchain':tools,
+                       'source_revision':args.source_revision,'artifact_sha256':artifact,'measurements':measurements}
+        destination.with_name(destination.stem+'-hosting.json').write_text(json.dumps(budget_report,sort_keys=True,indent=2)+'\n')
     else:print(selected.to_json(),end='')
 
 

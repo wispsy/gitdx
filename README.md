@@ -9,6 +9,8 @@ Python 3.14+ · MIT
 
 [Capability reports](docs/qualification.md) distinguish implementation support
 from explicitly selected, runtime-bound qualification evidence.
+The [version-1 hosting API](docs/hosting-api.md) records the selected public
+surface, durability/concurrency contracts, resource budgets and unsupported gates.
 The native compatibility matrix covers source/wheel/sdist on Linux, macOS and
 Windows, including same-format local/HTTP exchange and separate no-Git workers.
 
@@ -66,6 +68,10 @@ Development starts with the [implementation plan](IMPLEMENTATION_PLAN.md) and
 qualification targets; server handlers and public hosting remain later milestones.
 
 Source development does not imply a published package or deployed service.
+
+[Maintenance and backup](docs/maintenance.md) provide bounded bare-store fsck
+plans, retain-all repacking, recoverable loose-duplicate pruning and verified
+independent snapshots under an explicit writer-exclusion guard.
 
 [Isolated graph translation](docs/translation.md) provides explicit unsigned
 SHA-1/SHA-256 graph conversion with verified, persistent SQLite mappings.

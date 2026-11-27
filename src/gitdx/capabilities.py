@@ -22,10 +22,12 @@ class CapabilityState(StrEnum):
 
 # A tested record names the actual fixture checks required for that scope.
 _PROFILES=(
+    ('hosting.api-v1', 'supported' if sys.platform in ('linux','darwin','win32') else 'unsupported', 'Reviewed native hosting API version 1: explicit receive/ref outcomes, retain-all maintenance, quiescent backup and separately selected local reftable writes', ('hosting-api-public','hosting-concurrent','hosting-budget','hosting-no-git')),
     ('objects.native', 'supported', 'Native SHA-1/SHA-256 byte codecs', ('native-objects',)),
     ('storage.loose', 'supported', 'Verified loose objects and immutable writes', ('write-after-gc',)),
     ('storage.pack-index-v2', 'supported', 'Indexed native packs after Git gc', ('packed-read',)),
     ('storage.delta-ofs-ref', 'supported', 'Bounded indexed OFS and REF deltas', ('delta-ofs','delta-ref')),
+    ('storage.maintenance', 'supported', 'Bounded bare files-store inspection, retain-all repack, recoverable loose-duplicate pruning and quiescent verified backup', ('maintenance-native','maintenance-recovery','maintenance-concurrency','maintenance-no-git')),
     ('refs.files-packed', 'supported', 'Loose/packed refs with single-ref CAS', ('packed-refs','ref-cas')),
     ('refs.coordinated-multi-update', 'supported', 'All-value CAS under deterministic files-ref locks with explicit rollback/finalize recovery; no atomic native visibility', ('refs-transaction-native','refs-transaction-fault','refs-transaction-contention','refs-transaction-no-git')),
     ('worktree.index-stage-status', 'supported', 'Portable index, add and status', ('write-after-gc','native-status')),
