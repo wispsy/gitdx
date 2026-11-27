@@ -1,7 +1,7 @@
 """Bounded bare-store inspection, retain-all repacking and restartable pruning."""
 
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import json
 import os
@@ -131,7 +131,8 @@ def plan_maintenance(repo, *, grace_seconds=14*24*3600, now_ns=None, limits=None
         elif relative.startswith('pack/') and path.suffix == '.idx':
             raw = read_file(repo.git_dir, path, min(repo.objects.pack_limits.max_index_bytes, limits.max_bytes-scanned), limit_error=ObjectLimitExceeded)
             scanned += len(raw)
-            index = PackIndex.from_bytes(raw, repo.object_format, limits=repo.objects.pack_limits)
+            index_limits = replace(repo.objects.pack_limits, max_objects=min(repo.objects.pack_limits.max_objects, limits.max_objects))
+            index = PackIndex.from_bytes(raw, repo.object_format, limits=index_limits)
             if path.name != 'pack-'+index.pack_checksum.hex()+'.idx':
                 raise InvalidObject('maintenance pack name differs from checksum')
             data = read_file(repo.git_dir, path.with_suffix('.pack'), min(repo.objects.pack_limits.max_pack_bytes, limits.max_bytes-scanned), limit_error=ObjectLimitExceeded)
@@ -221,8 +222,13 @@ def apply_maintenance(repo, plan, *, prune=False, limits=None, check=None):
         if _identity(repo.git_dir) != plan.identity: raise RefConflict('maintenance plan belongs to another store')
         bundle = write_pack(repo.objects, plan.object_ids, limits=limits, check=check)
         # Candidate IDs must all be retained; do not trust a caller-modified plan.
-        if any(value[0] not in bundle.object_ids for value in plan.prune_candidates):
-            raise InvalidObject('maintenance candidates are outside the retained pack')
+        if len(plan.prune_candidates) > limits.max_objects:
+            raise ObjectLimitExceeded('maintenance prune candidate count exceeded')
+        retained = set(bundle.object_ids)
+        for value in plan.prune_candidates:
+            check()
+            if value[0] not in retained:
+                raise InvalidObject('maintenance candidates are outside the retained pack')
         _publish(repo, bundle)
         if not prune: return MaintenanceResult(bundle.checksum.hex(), 0)
         candidates = []
@@ -257,7 +263,8 @@ def backup_repository(repo, target, *, writer_guard, limits=None, check=None):
     from .repository import Repository
     limits = limits or PackWriteLimits();check = check or (lambda: None)
     _bare(repo);target = Path(target).absolute()
-    if target == repo.git_dir or repo.git_dir in target.parents or target in repo.git_dir.parents:
+    source_location = repo.git_dir.resolve();target_location = target.resolve()
+    if target_location == source_location or source_location in target_location.parents or target_location in source_location.parents:
         raise ValueError('backup requires a separate destination')
     check_path(target, target)
     with writer_guard:
