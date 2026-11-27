@@ -9,6 +9,7 @@ from .config import Config, ConfigEntry, RepositoryConfig, parse_config, parse_v
 from .names import InvalidRef
 from .refs import DirectRef, FilesRefStore, RefConflict, RefLocked, RefStore, ResolvedRef, SymbolicRef
 from .reftable import InvalidReftable, Reftable, ReftableLimits, ReftableRefStore
+from .reftable_writer import ReftableChange, ReftableWriteInterrupted, ReftableWriteResult, ReftableWriter
 from .index import Index, IndexEntry, IndexExtension, IndexFile, IndexLimits, IndexLocked, IndexStat, InvalidIndex
 from .packed_refs import PackedRef, PackedRefs
 from .reflog import ReflogReceipt, ReflogUpdate
@@ -59,6 +60,7 @@ __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFor
            "DirectRef", "FilesRefStore", "RefConflict", "RefLocked", "RefStore", "ResolvedRef", "SymbolicRef"]
 __all__ += ["Index", "IndexEntry", "IndexExtension", "IndexFile", "IndexLimits", "IndexLocked", "IndexStat", "InvalidIndex"]
 __all__ += ['InvalidReftable','Reftable','ReftableLimits','ReftableRefStore']
+__all__ += ['ReftableChange','ReftableWriteInterrupted','ReftableWriteResult','ReftableWriter']
 __all__ += ['UploadPack','UploadPackLimits']
 __all__ += ["PackedRef", "PackedRefs", "ReflogReceipt", "ReflogUpdate", "RefUpdateResult"]
 __all__ += ["RefChange", "RefRecoveryRequired", "RefTransactionInterrupted", "RefTransactionResult", "RefTransactionState"]

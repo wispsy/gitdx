@@ -55,7 +55,7 @@ _PROFILES=(
     ('repository.promisor', 'unsupported', 'Promisor/filter metadata is refused; no lazy fetch', ('refusal-profiles',)),
     ('repository.required-unknown', 'unsupported', 'Unknown required formats/extensions fail before writes', ('refusal-profiles',)),
     ('repository.reftable', 'supported', 'Bounded read-only v1/v2 reftable stacks, exact-case refs and backend selection', ('reftable-native','reftable-corruption','reftable-no-git')),
-    ('refs.reftable-write', 'unsupported', 'Reftable ref/index/worktree/object mutations require a qualified writer', ('reftable-corruption',)),
+    ('refs.reftable-write', 'supported' if sys.platform in ('linux','darwin','win32') else 'unsupported', 'Explicit trusted-local reftable writer with atomic stack snapshots, log-preserving compaction and guarded publication recovery; default mutations stay refused', ('reftable-write-native','reftable-write-atomic','reftable-write-recovery','reftable-write-no-git')),
     ('repository.linked-worktrees', 'unsupported', 'Gitfiles/commondir and linked worktrees are refused', ()),
     ('attributes.conversion', 'unsupported', 'External filters, text conversion and encoding drivers never execute', ()),
     ('refs.atomic-multi-update', 'unsupported', 'Single-ref transactions do not promise atomic multi-ref visibility', ()),
