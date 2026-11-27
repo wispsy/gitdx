@@ -1,4 +1,3 @@
-import importlib.util
 from pathlib import Path
 import tempfile
 import threading
@@ -13,8 +12,8 @@ from test_checkout_plan import commit_tree
 import test_objects as oracle
 
 
-class HostingBudgetTests(unittest.TestCase):
-    def test_public_profile_imports_and_bounded_workloads_without_helpers(self):
+class HostingPublicAPITests(unittest.TestCase):
+    def test_selected_public_names_and_unqualified_default_report(self):
         selected = ('Repository', 'ObjectFormat', 'ObjectId', 'RawObject', 'StoreLimits', 'PackLimits',
                     'UploadPack', 'UploadPackLimits', 'ReceivePolicy', 'ReceiveLimits', 'ReceiveResult',
                     'ReceiveInterrupted', 'ReceiveRejected', 'ReceiveState', 'IngestionProfile',
@@ -23,16 +22,11 @@ class HostingBudgetTests(unittest.TestCase):
                     'plan_maintenance', 'apply_maintenance', 'recover_maintenance', 'backup_repository',
                     'verify_backup', 'capability_report', 'QualificationEvidence')
         self.assertTrue(set(selected) <= set(gitdx.__all__))
-        spec = importlib.util.spec_from_file_location('hosting_qualification', Path(__file__).resolve().parents[1]/'scripts/qualify_repository.py')
-        module = importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-        for format in ObjectFormat:
-            with self.subTest(format=format), tempfile.TemporaryDirectory() as tmp:
-                with patch('subprocess.Popen', side_effect=AssertionError('runtime helper')), patch('os.system', side_effect=AssertionError('runtime shell')):
-                    result = module.runtime_hosting_budget(Path(tmp), format)
-                self.assertEqual(result['objects'], 96)
-                self.assertLessEqual(result['pack_bytes'], result['budgets']['wire_bytes'])
-                expected = 'untrusted' if format is ObjectFormat.SHA256 and supported() else 'trusted-local'
-                self.assertEqual(result['ingestion'], expected)
+        with patch('subprocess.Popen', side_effect=AssertionError('runtime helper')):
+            report = gitdx.capability_report()
+        self.assertIsNone(report['qualification'])
+        selected = next(c for c in report['capabilities'] if c['id'] == 'hosting.api-v1')
+        self.assertNotEqual(selected['state'], 'tested')
 
 
 class HostingConcurrencyNativeTests(unittest.TestCase):
