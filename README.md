@@ -9,6 +9,8 @@ Python 3.14+ · MIT
 
 [Capability reports](docs/qualification.md) distinguish implementation support
 from explicitly selected, runtime-bound qualification evidence.
+The [version-1 hosting API](docs/hosting-api.md) records the selected public
+surface, durability/concurrency contracts, resource budgets and unsupported gates.
 The native compatibility matrix covers source/wheel/sdist on Linux, macOS and
 Windows, including same-format local/HTTP exchange and separate no-Git workers.
 

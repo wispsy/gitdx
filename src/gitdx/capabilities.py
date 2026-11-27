@@ -22,6 +22,7 @@ class CapabilityState(StrEnum):
 
 # A tested record names the actual fixture checks required for that scope.
 _PROFILES=(
+    ('hosting.api-v1', 'supported' if sys.platform in ('linux','darwin','win32') else 'unsupported', 'Reviewed native hosting API version 1: explicit receive/ref outcomes, retain-all maintenance, quiescent backup and separately selected local reftable writes', ('hosting-api-public','hosting-concurrent','hosting-budget','hosting-no-git')),
     ('objects.native', 'supported', 'Native SHA-1/SHA-256 byte codecs', ('native-objects',)),
     ('storage.loose', 'supported', 'Verified loose objects and immutable writes', ('write-after-gc',)),
     ('storage.pack-index-v2', 'supported', 'Indexed native packs after Git gc', ('packed-read',)),

@@ -1,5 +1,15 @@
 # Gitdx → Gittycat implementation plan
 
+## DX-33 hosting API qualification (27 November 2026)
+
+[hosting-native/1](docs/hosting-api.md) freezes the selected public API and its
+trust, durability, concurrency and resource contracts. Source/wheel/sdist
+qualification combines active receive with online maintenance and native fsck.
+Separate no-Git workers exercise measured 32-commit bounded pack/receive/
+maintenance/backup workloads in both formats; supplemental receipts bind timing
+observations and hard budgets to exact implementation/toolchain/artifact identity.
+Publication and public deployment remain independent owner-selected gates.
+
 ## DX-28 explicit reftable writer (27 November 2026)
 
 An explicit trusted-local writer now provides expected-value batches through the
