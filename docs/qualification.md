@@ -23,7 +23,7 @@ gitdx capabilities --evidence /selected/qualification.json
 
 Required repository profiles fail before local operations rather than triggering
 helpers or approximating data. Alternates, shallow/commondir metadata, unknown
-required formats/extensions are unsupported; [reftable](reftable.md) selects a bounded read-only backend. Promisor remote config,
+required formats/extensions are unsupported; [reftable](reftable.md) defaults to a bounded read-only backend with a separately selected local writer. Promisor remote config,
 partial-clone filters and pack `.promisor` markers are refused without lazy fetch;
 open/index/ref/worktree checks repeat this policy. Filesystem checks assume the
 documented owner-controlled profile. The registry does not imply production Git
@@ -77,7 +77,7 @@ atomic visibility remains unsupported.
 
 | Profile | Supported scope exercised | Explicitly refused/separate scope |
 | --- | --- | --- |
-| Repository/storage | Same-format SHA-1 and SHA-256, files/packed refs, read-only reftable, index v2, native gc, indexed REF/OFS deltas, native-written and Gitdx-written objects | Alternates, shallow/promisor/filter metadata, linked worktrees/commondir, unknown required formats, reftable mutations |
+| Repository/storage | Same-format SHA-1 and SHA-256, files/packed refs, explicit local reftable writer, index v2, native gc, indexed REF/OFS deltas, native-written and Gitdx-written objects, conservative online maintenance and verified bare backups | Alternates, shallow/promisor/filter metadata, linked worktrees/commondir, unknown required formats, implicit/hosted reftable mutations, unreachable packed-object expiry |
 | Local APIs | Stage/status/commit/checkout, explicit-tree byte diffs, typed revision subset, all two-root merge bases | Non-v2/split/sparse/unknown required indexes, graft/replacement history; broader revision syntax remains unsupported |
 | Fetch/clone | Local and smart HTTP; legacy 0/1 and protocol v2; complete packs with same-format negotiation | Cross-format conversion, shallow/filter requests, haves/incremental negotiation, implicit helpers |
 | Push | Expected-old branch/tag proposals; report-status v1/v2; local individual CAS and native advertised HTTP atomic mode | Local atomic visibility, signed/options/rewritten pushes, production server routes |
