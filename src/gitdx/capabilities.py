@@ -10,6 +10,8 @@ import re
 import ssl
 import sys
 
+from .confined_fs import supported as confined_storage_supported
+
 
 class CapabilityState(StrEnum):
     SUPPORTED='supported'
@@ -42,6 +44,8 @@ _PROFILES=(
     ('transfer.fetch-local-http', 'supported', 'Complete same-format local and smart-HTTP fetch/clone', ('fetch-interop',)),
     ('protocol.push-records', 'supported', 'Bounded receive-pack commands and report-status v1/v2 records', ('push-codec',)),
     ('receive.quarantine-policy', 'supported', 'Bounded complete object graphs, explicit policy and single-ref receive outcomes', ('receive-native','receive-policy','receive-fault','receive-no-git')),
+    ('receive.ingestion-validation', 'supported', 'Explicit trust selection, early untrusted SHA-1 refusal and bounded SHA-256 structural validation', ('ingestion-policy','ingestion-native','ingestion-no-git')),
+    ('receive.untrusted-sha256', 'supported' if confined_storage_supported() else 'unsupported', 'Owner-controlled Linux descriptor confinement, per-operation resource bounds and explicit interrupted recovery; refused on other platforms', ('ingestion-confinement','ingestion-no-git')),
     ('config.local', 'supported', 'Local ordered configuration and conservative worktree policy', ('native-status','refusal-profiles')),
     ('config.includes-inspection', 'experimental', 'Explicit confined read-only includes; repository mutations refuse includes', ()),
     ('repository.alternates', 'unsupported', 'Alternates are refused before repository operations', ('refusal-profiles',)),

@@ -1,7 +1,10 @@
 # Proposed untrusted-ingestion policy (DX-26)
 
-Status: proposed, awaiting the owner's SHA-1 policy choice. This document does
-not enable an untrusted hosting profile or change trusted local compatibility.
+Status: the owner approved the recommended SHA-256-only untrusted-ingestion
+policy on 26 November 2026. Current source implements the gate and the bounded
+Linux descriptor profile documented in [ingestion.md](ingestion.md). Installed
+qualification records identify the exact tested artifact/platform; public HTTP
+receive and deployment remain separate gates.
 
 ## Recommendation
 
@@ -26,10 +29,11 @@ from accepting untrusted objects into it.
 - Receive now checks complete supplied/reachable graphs, target kinds, pack/delta
   work and selected quotas. Ref transactions add coordinated locks and explicit
   interruption recovery. Both native hash formats pass trusted-storage fixtures.
-- Directory/root identities, receipts and static symlink/reparse checks assume
-  controlled storage paths. They do not establish hostile concurrent filesystem
-  replacement protection, crash-proof global disk quotas or cross-file power-loss
-  atomicity. The new APIs do not claim an untrusted hosting capability.
+- The explicit Linux untrusted profile pins directory descriptors and repository
+  identity for receive and recovery, including bounded cleanup. Trusted local
+  paths retain their controlled-storage contract. Neither profile is a sandbox
+  against malicious service-owner code, a global disk quota or cross-file
+  power-loss atomicity.
 
 Git's [hash transition rationale](https://git-scm.com/docs/hash-function-transition)
 distinguishes hardened SHA-1 from ordinary hashing and describes the move to
@@ -38,7 +42,7 @@ provides a C collision-detection library under MIT, with a collision indicator
 and documented attack coverage. Its existence is not evidence that a Python
 binding, selected build or this engine's ingestion paths are qualified.
 
-## Concrete implementation after selection
+## Selected implementation and qualification contract
 
 1. Add an explicit ingestion profile selected by the trusted application, separate
    from branch/authorization policy and immutable native object-format selection.
@@ -70,7 +74,7 @@ existing-object comparisons. Missing/unsupported detectors must fail closed.
 Any additional runtime/native dependency and packaging support needs explicit
 selection; invoking the installed Git executable is not an allowed substitute.
 
-The owner choice is between the recommended initial SHA-256-only untrusted
-profile and prioritizing that provider qualification workstream. It does not
+The selected initial profile is SHA-256-only untrusted ingestion. A future
+SHA-1 detector/provider is a separate workstream. This selection does not
 authorize deployment, publication, rewriting existing repositories or weakening
 the independent filesystem/resource gates.

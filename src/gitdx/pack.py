@@ -224,11 +224,12 @@ class _PackLookup:
     def _paths(self):
         store=self.store
         directory = store.path / "pack"
-        from .filesystem import check_path
+        from .filesystem import check_path, storage_exists, storage_names
         check_path(store.path, directory)
-        if not directory.exists():return ()
+        if not storage_exists(directory):return ()
         paths = []
-        for path in directory.iterdir():
+        for name in storage_names(directory):
+            path=directory/name
             if path.name.startswith("pack-") and path.suffix == ".idx":
                 if not re.fullmatch(rf"pack-[0-9a-f]{{{store.format.hex_size}}}\.idx", path.name):raise InvalidPack("malformed pack-index filename")
                 paths.append(path)

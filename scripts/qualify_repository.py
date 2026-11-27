@@ -16,7 +16,8 @@ import gitdx
 from gitdx import (Blob, Commit, DirectRef, GitdxError, Index, InvalidIndex, ObjectFormat, ObjectId, PackFile, PackIndex, PushState,
                    PushUpdate, QualificationEvidence, RefConflict, Repository, SmartHTTPTransport, TransferLimits,
                    UnsupportedFormat, capability_report, implementation_digest, runtime_toolchain, LocalTransport,
-                   PushCommand, ReceivePolicy, RefChange)
+                   PushCommand, ReceivePolicy, RefChange, IngestionProfile)
+from gitdx.confined_fs import supported as confined_storage_supported
 
 IDENTITY=b'Qualification <qualification@example.invalid> 1700000000 +0000'
 CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs', 'ref-cas', 'write-after-gc',
@@ -27,13 +28,15 @@ CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs'
  'merge-conflicts', 'merge-recovery', 'merge-no-git', 'reset-native', 'restore-native',
  'reset-restore-recovery', 'reset-restore-no-git', 'receive-native', 'receive-policy', 'receive-fault',
  'receive-no-git', 'refs-transaction-native', 'refs-transaction-fault', 'refs-transaction-contention',
- 'refs-transaction-no-git')
+ 'refs-transaction-no-git', 'ingestion-policy', 'ingestion-native', 'ingestion-no-git')
+if confined_storage_supported():CHECKS+=('ingestion-confinement',)
 CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'storage.delta-ofs-ref',
  'refs.files-packed', 'worktree.index-stage-status', 'worktree.checkout', 'history.commit',
  'config.local', 'diff.trees-bytes', 'history.revisions', 'history.ancestry',
  'transfer.fetch-local-http', 'protocol.push-records', 'transfer.push-local', 'transfer.push-http',
  'worktree.merge-two-parent', 'worktree.reset-restore', 'receive.quarantine-policy',
- 'refs.coordinated-multi-update')
+ 'refs.coordinated-multi-update', 'receive.ingestion-validation')
+if confined_storage_supported():CAPABILITIES+=('receive.untrusted-sha256',)
 
 
 def git(path,*args,data=None):
@@ -199,6 +202,16 @@ def runtime_receive(repo,root,new):
     if not result.complete or result.atomic or result.cleanup_pending:raise RuntimeError('no-Git receive did not complete')
     if target.refs.resolve().oid!=new or target.objects.read(new)!=repo.objects.read(new):raise RuntimeError('no-Git receive object/ref mismatch')
     if not result.coordinated or not result.ref_transaction.committed:raise RuntimeError('coordinated receive did not commit')
+    untrusted=Repository.init(root/'untrusted-no-git.git',bare=True,object_format=repo.object_format)
+    policy=ReceivePolicy(ingestion=IngestionProfile.UNTRUSTED)
+    if repo.object_format is ObjectFormat.SHA256 and confined_storage_supported():
+        result=untrusted.receive((command,),pack,policy=policy,coordinated=True)
+        if not result.complete or untrusted.refs.resolve().oid!=new:raise RuntimeError('untrusted no-Git receive failed')
+    else:
+        try:untrusted.receive((command,),pack,policy=policy)
+        except UnsupportedFormat:pass
+        else:raise RuntimeError('unsupported untrusted profile was accepted')
+        if not untrusted.refs.resolve().unborn:raise RuntimeError('ref changed on ingestion refusal')
     result=target.refs.transaction((RefChange('refs/tags/current',None,new),RefChange('refs/heads/main',new,new)))
     if not result.committed or result.atomic or target.refs.read('refs/tags/current') is not None:
         raise RuntimeError('no-Git ref transaction did not preserve its guarantees')
@@ -381,6 +394,12 @@ def qualify(args):
     import test_ref_transaction
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_ref_transaction))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('ref transaction qualification failed or skipped')
+    import test_ingestion
+    cases=(test_ingestion.IngestionTests,test_ingestion.IngestionNativeTests)
+    if os.name=='posix':cases+=(test_ingestion.DescriptorStorageTests,)
+    suite=unittest.TestSuite(unittest.defaultTestLoader.loadTestsFromTestCase(case) for case in cases)
+    result=unittest.TextTestRunner(verbosity=1).run(suite)
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('ingestion qualification failed or skipped')
     with tempfile.TemporaryDirectory() as tmp:
         root=Path(tmp)
         for format in ObjectFormat:

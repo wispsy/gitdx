@@ -2,9 +2,9 @@
 
 Current source provides `Repository.receive(commands, pack, policy=policy)` for
 an explicitly selected bare repository and native-format `PushCommand` records.
-Authentication belongs to the caller. The trusted-storage limits below apply;
-this API is not permission to accept hostile filesystem writers or untrusted
-SHA-1 ingestion. DX-26 still owns those hosting gates. The published 0.1.0a1
+Authentication belongs to the caller. The default selects trusted local storage;
+[explicit untrusted ingestion](ingestion.md) selects SHA-256-only Linux descriptor
+confinement and additional validation/allocation limits. The published 0.1.0a1
 preview predates this receive API.
 
 ```python
@@ -45,10 +45,11 @@ native fsck requirements are refused without execution.
 `ReceiveLimits` selects `TransferLimits` (pack expansion, object count/size,
 delta work, wire bytes, ref count and deadline), `PackWriteLimits` for the full
 graph (objects, edges and total bytes), and a quarantine file-byte budget.
+`IngestionLimits` and `FilesystemLimits` add untrusted-profile bounds.
 Cancellation is checked throughout intake, graph reads, promotion and between
 ref updates. Quarantine disk accounting includes its receipt and compressed
 object bytes; filesystem allocation/metadata is outside that byte count. A
-single bounded object can temporarily exceed the budget before its size check;
+single bounded object in the trusted profile can temporarily exceed the budget before its size check;
 no ref is published on that failure. These are per-operation bounds, not a
 global repository disk quota or an interruptible operating-system I/O deadline.
 

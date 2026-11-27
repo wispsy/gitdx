@@ -27,6 +27,7 @@ class Repository:
     work_tree: Path | None
     config: RepositoryConfig
     objects: RepositoryObjectStore
+    storage_identity: tuple[int,int] | None = None
 
     @property
     def bare(self) -> bool:
@@ -147,6 +148,10 @@ class Repository:
         from .receive import receive
         return receive(self,commands,pack,**options)
 
+    def recover_receive(self, **options):
+        from .receive import recover_receive
+        return recover_receive(self,**options)
+
     def plan_checkout(self, destination, *, unborn=False, overwrite_tracked=False, limits=None):
         from .checkout import plan_checkout
         return plan_checkout(self, destination, unborn=unborn, overwrite_tracked=overwrite_tracked, limits=limits)
@@ -264,7 +269,8 @@ class Repository:
                 raise UnsupportedFormat("bare config cannot be used with an attached worktree")
             work_tree = root
         objects = RepositoryObjectStore(git_dir / "objects", config.object_format, limits=limits, pack_limits=pack_limits)
-        return cls(git_dir, work_tree, config, objects)
+        info=git_dir.stat()
+        return cls(git_dir, work_tree, config, objects,(info.st_dev,info.st_ino))
 
     @classmethod
     def discover(cls, start: str | os.PathLike[str] = ".", *, limits: StoreLimits | None = None, pack_limits: PackLimits | None = None) -> Repository:

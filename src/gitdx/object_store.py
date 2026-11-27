@@ -10,6 +10,7 @@ import zlib
 
 from .errors import GitdxError, InvalidObject
 from .filesystem import check_path, read_file
+from .confined_fs import active
 from .objects import ObjectFormat, ObjectId, RawObject
 
 
@@ -100,7 +101,7 @@ class LooseObjectStore:
             raise InvalidObject("loose-object contents do not match the requested object ID")
         return obj
 
-    def write(self, obj: RawObject) -> ObjectId:
+    def write(self, obj: RawObject, *, reserve=None) -> ObjectId:
         if len(obj.data) > self.limits.max_object_bytes:
             raise ObjectLimitExceeded("object payload exceeds its configured byte limit")
         encoded = obj.encode()
@@ -111,6 +112,13 @@ class LooseObjectStore:
             raise ObjectLimitExceeded("compressed object exceeds its configured byte limit")
         oid = obj.oid(self.format)
         target = self.object_path(oid)
+        scope=active()
+        if scope is not None:
+            try:scope.write(target,compressed,immutable=True,reserve=reserve)
+            except FileExistsError:
+                if self.read(oid)!=obj:raise InvalidObject('existing object conflicts with the new object')
+            return oid
+        if reserve is not None:reserve(len(compressed))
         target.parent.mkdir(exist_ok=True)
         check_path(self.path, target)
         fd, name = tempfile.mkstemp(prefix="tmp_obj_", dir=target.parent)

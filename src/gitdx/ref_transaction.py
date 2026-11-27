@@ -21,7 +21,8 @@ import tempfile
 import uuid
 
 from .errors import GitdxError, InvalidObject, UnsupportedFormat
-from .filesystem import check_path, read_file, replace_file
+from .filesystem import (check_path, read_file, replace_file, storage_exists, storage_stat, storage_names,
+                         storage_unlink, storage_mkdtemp, storage_rename, storage_remove_tree)
 from .names import InvalidRef, validate_refname
 from .objects import ObjectId
 from .packed_refs import PackedRefs
@@ -89,14 +90,14 @@ class RefTransactionInterrupted(GitdxError):
 
 def require_no_ref_transaction(root):
     path=root/STATE_NAME;check_path(root,path)
-    if path.exists():raise RefRecoveryRequired('ref transaction recovery is pending')
+    if storage_exists(path):raise RefRecoveryRequired('ref transaction recovery is pending')
 
 
 def _guard(store,*,recovering=False):
     store._profile()
     for name in ('checkout-state','operation-state','merge-state'):
         path=store.path/name;check_path(store.path,path)
-        if path.exists():raise UnsupportedFormat('finish the pending repository operation before a ref transaction')
+        if storage_exists(path):raise UnsupportedFormat('finish the pending repository operation before a ref transaction')
     if not recovering:require_no_ref_transaction(store.path)
 
 
@@ -150,7 +151,7 @@ def _packed_after(data,changes,format):
 
 
 def _identity(root):
-    info=root.stat();return [info.st_dev,info.st_ino]
+    info=storage_stat(root);return [info.st_dev,info.st_ino]
 
 
 def _canonical(data):return json.dumps(data,sort_keys=True,separators=(',',':')).encode('ascii')
@@ -213,12 +214,11 @@ def _load(store,root=None):
             old_oid=ObjectId(old.removesuffix(b'\n').decode('ascii'),store.objects.format) if old is not None else packed_values.get(change.name)
             wanted=str(change.new).encode('ascii')+b'\n' if change.new else None
             if old_oid!=change.expected or new!=wanted:raise ValueError('ref journal logical and physical values differ')
-        with os.scandir(root) as entries:
-            entries=tuple(islice(entries,5))
+        entries=tuple(islice(storage_names(root),5))
         if len(entries)>4:raise ValueError('unexpected ref journal file count')
         for entry in entries:
-            path=root/entry.name;check_path(root,path)
-            if not stat.S_ISREG(path.stat().st_mode) or (entry.name!='state.json' and not entry.name.startswith('tmp_meta_')):
+            path=root/entry;check_path(root,path)
+            if not stat.S_ISREG(storage_stat(path).st_mode) or (entry!='state.json' and not entry.startswith(('tmp_meta_','tmp_secure_'))):
                 raise ValueError('unexpected ref journal file')
         return data,changes,snapshots
     except (OSError,ValueError,TypeError,KeyError,GitdxError) as error:
@@ -234,7 +234,7 @@ def _check_physical(store,snapshots,*,side=None):
 def _put(store,name,data):
     if _read(store,name)==data:return
     path=store.path/name;check_path(store.path,path)
-    if data is None:path.unlink(missing_ok=True)
+    if data is None:storage_unlink(path,missing_ok=True)
     else:replace_file(store.path,path,data)
 
 
@@ -253,9 +253,9 @@ def _install(store,changes,snapshots,side,check):
 def _retire(store,journal):
     state=store.path/STATE_NAME;retired=store.path/('tmp_refs_done_'+journal['id'])
     check_path(store.path,retired)
-    if retired.exists():raise RefConflict('retired ref journal path already exists')
-    os.rename(state,retired)
-    try:shutil.rmtree(retired)
+    if storage_exists(retired):raise RefConflict('retired ref journal path already exists')
+    storage_rename(state,retired)
+    try:storage_remove_tree(retired)
     except OSError:return retired
     return None
 
@@ -278,11 +278,11 @@ def transaction(store,values,*,atomic=False,check=None,before_publish=None):
         journal={'version':1,'id':uuid.uuid4().hex,'format':store.objects.format.value,'repository':_identity(store.path),'phase':'prepared',
                  'changes':[[c.name,str(c.expected) if c.expected else None,str(c.new) if c.new else None] for c in changes],
                  'snapshots':{name:[_encode(v) for v in values] for name,values in snapshots.items()}}
-        state=store.path/STATE_NAME;temporary=Path(tempfile.mkdtemp(prefix='tmp_refs_',dir=store.path))
+        state=store.path/STATE_NAME;temporary=storage_mkdtemp(store.path,'tmp_refs_')
         temporary_identity=_identity(temporary);retired=None;prepared=False;committed=False
         try:
             _save(temporary,journal);check();require_no_ref_transaction(store.path)
-            os.rename(temporary,state)
+            storage_rename(temporary,state)
             prepared=True
             if before_publish is not None:before_publish()
             _guard(store,recovering=True);_check_physical(store,snapshots,side=0)
@@ -295,20 +295,20 @@ def transaction(store,values,*,atomic=False,check=None,before_publish=None):
             committed=True
             retired=_retire(store,journal)
         except BaseException as error:
-            if not state.exists() and not prepared:raise
+            if not storage_exists(state) and not prepared:raise
             phase=RefTransactionState.UNKNOWN
             try:
                 current,_,_=_load(store)
                 if current['id']==journal['id']:phase=RefTransactionState(current['phase'])
             except RefRecoveryRequired:
-                if not state.exists() and committed:phase=RefTransactionState.COMMITTED
+                if not storage_exists(state) and committed:phase=RefTransactionState.COMMITTED
             retired_path=store.path/('tmp_refs_done_'+journal['id'])
-            result=RefTransactionResult(journal['id'],changes,phase,state.exists(),retired_path if retired_path.exists() else None)
+            result=RefTransactionResult(journal['id'],changes,phase,storage_exists(state),retired_path if storage_exists(retired_path) else None)
             raise RefTransactionInterrupted(result) from error
         finally:
-            if temporary.exists():
+            if storage_exists(temporary):
                 check_path(store.path,temporary)
-                if _identity(temporary)==temporary_identity:shutil.rmtree(temporary)
+                if _identity(temporary)==temporary_identity:storage_remove_tree(temporary)
         return RefTransactionResult(journal['id'],changes,RefTransactionState.COMMITTED,False,retired)
 
 
@@ -317,7 +317,7 @@ def recover_transaction(store,*,check=None):
     if not callable(check):raise TypeError('select a trusted check')
     check()
     state=store.path/STATE_NAME;check_path(store.path,state)
-    if not state.exists():raise RefRecoveryRequired('there is no pending ref transaction')
+    if not storage_exists(state):raise RefRecoveryRequired('there is no pending ref transaction')
     journal,changes,snapshots=_load(store)
     with _locks(store,changes,recovering=True,check=check):
         current,_,_=_load(store)
@@ -332,7 +332,7 @@ def recover_transaction(store,*,check=None):
             retired=_retire(store,journal)
         except BaseException as error:
             retired_path=store.path/('tmp_refs_done_'+journal['id'])
-            result=RefTransactionResult(journal['id'],changes,RefTransactionState(journal['phase']),state.exists(),
-                                        retired_path if retired_path.exists() else None)
+            result=RefTransactionResult(journal['id'],changes,RefTransactionState(journal['phase']),storage_exists(state),
+                                        retired_path if storage_exists(retired_path) else None)
             raise RefTransactionInterrupted(result) from error
         return RefTransactionResult(journal['id'],changes,RefTransactionState.COMMITTED if committed else RefTransactionState.ROLLED_BACK,False,retired)

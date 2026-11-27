@@ -401,3 +401,28 @@ CAS as the default. Recheck policy under all ref locks; coordinated stale/policy
 preflight rejects the batch. Qualify competing writers, mixed native access,
 loose/packed deletion, every publication boundary, recovery refusal and installed
 empty-PATH operation in both hash formats.
+
+## Storage and read-serving batch (2026-11-26)
+
+The owner approved native SHA-256-only untrusted ingestion for DX-26, retaining
+trusted local SHA-1/SHA-256. Implement the ingestion gate before staging,
+inflation or application callbacks, with no implicit conversion or new detector
+dependency. Qualify the selected filesystem, graph/fsck, allocation/work/disk and
+interruption boundaries independently; preserve explicit refusal for unsupported
+hosting platforms/profiles. A format choice alone is not storage hardening.
+
+DX-23 adds bounded read-only native reftable access selected from repository
+extensions. Validate file/header/footer/hash/block/index ordering and stack
+semantics, including tombstones and exact-case names. Preserve deliberate write
+refusal until DX-28; files-ref paths and packed snapshots cannot stand in for
+reftable operations. Use native Git fixtures and malformed/bounded cases.
+
+CAT-07 supplies authorized smart-HTTP discovery and upload-pack for protocol v2
+and the legacy variants used by ordinary Git clients. Git protocol parsing,
+negotiation, graph selection and pack generation remain owned by Gitdx; Gittycat
+owns HTTP/authentication/catalog/storage selection. Check current credentials
+and read permission before exposing refs/objects, bound requests/work/results,
+and qualify real stock-Git clone/fetch for both formats, empty repositories and
+private concealment. Add a focused engine server-interface task/PR if needed.
+Qualify the selected cross-repository source/dependency without implicitly
+publishing a release. Public deployment and receive-pack remain later gates.

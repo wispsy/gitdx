@@ -6,8 +6,10 @@ from itertools import islice
 
 from .ancestry import is_ancestor
 from .config import parse_config
+from .confined_fs import ConfinedStorage, FilesystemLimits
 from .errors import InvalidObject, UnsupportedFormat
-from .filesystem import check_path, read_file
+from .filesystem import check_path, read_file, storage_exists
+from .ingestion import IngestionLimits, IngestionProfile, ObjectValidator, check_ingestion_format, check_ingestion_names
 from .names import InvalidRef, validate_refname
 from .object_store import MissingObject, ObjectLimitExceeded
 from .objects import ObjectType
@@ -26,9 +28,12 @@ class ReceiveLimits:
     transfer: TransferLimits = field(default_factory=lambda:TransferLimits(max_refs=256))
     graph: PackWriteLimits = field(default_factory=PackWriteLimits)
     max_quarantine_bytes: int = 288 * 1024 * 1024
+    ingestion: IngestionLimits = field(default_factory=IngestionLimits)
+    filesystem: FilesystemLimits = field(default_factory=FilesystemLimits)
 
     def __post_init__(self):
-        if not isinstance(self.transfer,TransferLimits) or not isinstance(self.graph,PackWriteLimits):
+        if (not isinstance(self.transfer,TransferLimits) or not isinstance(self.graph,PackWriteLimits)
+                or not isinstance(self.ingestion,IngestionLimits) or not isinstance(self.filesystem,FilesystemLimits)):
             raise TypeError('select transfer and graph limits')
         if type(self.max_quarantine_bytes) is not int or self.max_quarantine_bytes<=0:
             raise ValueError('select a positive quarantine storage limit')
@@ -41,8 +46,10 @@ class ReceivePolicy:
     allow_tag_replacement: bool = False
     object_check: object = field(default=None,repr=False)
     ref_check: object = field(default=None,repr=False)
+    ingestion: IngestionProfile = IngestionProfile.TRUSTED_LOCAL
 
     def __post_init__(self):
+        object.__setattr__(self,'ingestion',IngestionProfile(self.ingestion))
         for value in (self.allow_deletes,self.allow_non_fast_forwards,self.allow_tag_replacement):
             if type(value) is not bool:raise TypeError('receive policy switches must be booleans')
         if any(value is not None and not callable(value) for value in (self.object_check,self.ref_check)):
@@ -75,6 +82,7 @@ class ReceiveResult:
     atomic: bool = False
     coordinated: bool = False
     ref_transaction: RefTransactionResult | None = None
+    storage_identity: tuple[int,int] | None = None
 
     @property
     def complete(self):return self.unpack_ok and all(o.state is ReceiveState.ACCEPTED for o in self.outcomes)
@@ -118,7 +126,7 @@ def receive_profile(repo,control):
         raise UnsupportedFormat('native fsck policy requires a separately qualified receiver')
     for name in ('pre-receive','update','post-receive','post-update','proc-receive','push-to-checkout'):
         path=repo.git_dir/'hooks'/name;check_path(repo.git_dir,path)
-        if path.exists():raise UnsupportedFormat('receive refuses active hooks')
+        if storage_exists(path):raise UnsupportedFormat('receive refuses active hooks')
     return values.boolean('receive','denydeletes'),values.boolean('receive','denynonfastforwards')
 
 
@@ -164,6 +172,23 @@ def _ref_reason(repo,view,command,policy,control):
 
 
 def receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,coordinated=False,atomic=False,_control=None):
+    if not isinstance(policy,ReceivePolicy):raise TypeError('select an explicit ReceivePolicy')
+    profile=check_ingestion_format(policy.ingestion,repo.object_format)
+    if profile is IngestionProfile.TRUSTED_LOCAL:
+        return _receive(repo,commands,pack,policy=policy,limits=limits,cancel=cancel,coordinated=coordinated,atomic=atomic,_control=_control)
+    limits=limits or ReceiveLimits()
+    if not isinstance(limits,ReceiveLimits):raise TypeError('select ReceiveLimits')
+    if limits.max_quarantine_bytes<8192:raise ObjectLimitExceeded('hosting quarantine allocation requires at least 8192 bytes')
+    control=_control or TransferControl(limits.transfer,cancel)
+    with ConfinedStorage(repo.git_dir,repo.storage_identity,limits=limits.filesystem,check=control.check,
+                         limit_error=ObjectLimitExceeded) as storage:
+        result=_receive(repo,commands,pack,policy=policy,limits=limits,cancel=cancel,coordinated=coordinated,atomic=atomic,_control=control)
+        try:storage.unchanged()
+        except BaseException as error:raise ReceiveInterrupted(result) from error
+        return result
+
+
+def _receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,coordinated=False,atomic=False,_control=None):
     """Publish verified objects then explicit per-ref CAS updates; never atomic.
 
     Authentication belongs to the caller. Trusted policy callables must not
@@ -171,6 +196,7 @@ def receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,coordinated=
     behind a whole-batch rejection. No configured external hook is executed.
     """
     if not isinstance(policy,ReceivePolicy):raise TypeError('select an explicit ReceivePolicy')
+    ingestion=check_ingestion_format(policy.ingestion,repo.object_format)
     if type(coordinated) is not bool or type(atomic) is not bool:raise TypeError('receive mode switches must be booleans')
     if atomic:raise UnsupportedFormat('files refs cannot provide atomic receive visibility')
     limits=limits or ReceiveLimits()
@@ -178,12 +204,14 @@ def receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,coordinated=
     control=_control or TransferControl(limits.transfer,cancel)
     require_no_ref_transaction(repo.git_dir)
     receive_profile(repo,control);commands=_commands(commands,repo,min(limits.transfer.max_refs,256) if coordinated else limits.transfer.max_refs)
+    if ingestion is IngestionProfile.UNTRUSTED:check_ingestion_names(commands,limits.ingestion)
     if not isinstance(pack,bytes):raise TypeError('receive pack must be immutable bytes')
     roots=tuple(c.new for c in commands if c.new is not None)
     if bool(roots)!=bool(pack):raise InvalidObject('pack presence differs from receive targets')
     control.consume(len(pack))
     outcomes=[ReceiveOutcome(c,ReceiveState.NOT_ATTEMPTED) for c in commands]
-    incoming=ObjectQuarantine(repo,limits=limits.transfer.pack,check=control.check)
+    validator=ObjectValidator(repo.object_format,limits=limits.ingestion,check=control.check) if ingestion is IngestionProfile.UNTRUSTED else None
+    incoming=ObjectQuarantine(repo,limits=limits.transfer.pack,check=control.check,validator=validator)
     unpack_ok=False;error=None;rejected=False;ref_transaction=None
     try:
         with incoming:
@@ -247,10 +275,23 @@ def receive(repo,commands,pack=b'',*,policy,limits=None,cancel=None,coordinated=
                 control.check()
     except BaseException as cause:error=cause
     result=ReceiveResult(tuple(outcomes),unpack_ok,len(incoming.received),incoming.promoted,
-                         incoming.cleanup_pending,incoming.cleanup_error,coordinated=coordinated,ref_transaction=ref_transaction)
+                         incoming.cleanup_pending,incoming.cleanup_error,coordinated=coordinated,
+                         ref_transaction=ref_transaction,storage_identity=repo.storage_identity)
     if error is not None:
         if rejected:
             result=replace(result,outcomes=tuple(ReceiveOutcome(c,ReceiveState.REJECTED,b'invalid pack, graph or object policy') for c in commands))
             raise ReceiveRejected(result) from error
         raise ReceiveInterrupted(result) from error
     return result
+
+
+def recover_receive(repo,*,ingestion=IngestionProfile.TRUSTED_LOCAL,limits=None,cancel=None):
+    """Owner-selected recovery of a coordinated receive's ref journal."""
+    profile=check_ingestion_format(ingestion,repo.object_format);limits=limits or ReceiveLimits()
+    if not isinstance(limits,ReceiveLimits):raise TypeError('select ReceiveLimits')
+    control=TransferControl(limits.transfer,cancel)
+    if profile is IngestionProfile.TRUSTED_LOCAL:return repo.refs.recover_transaction(check=control.check)
+    with ConfinedStorage(repo.git_dir,repo.storage_identity,limits=limits.filesystem,check=control.check,
+                         limit_error=ObjectLimitExceeded) as storage:
+        result=repo.refs.recover_transaction(check=control.check);storage.unchanged()
+        return result

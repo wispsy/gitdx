@@ -108,8 +108,8 @@ evidence only. It does not publish packages or authorize a release.
 
 Current source adds `worktree.merge-two-parent`, selected only with
 `merge-native`, `merge-conflicts`, `merge-recovery` and `merge-no-git`. Each
-source/wheel/sdist qualification now includes 37 checks across 18 selected
-scopes. The native/conflict/recovery suite runs against the selected installed
+source/wheel/sdist qualification records the selected checks and scopes. The
+native/conflict/recovery suite runs against the selected installed
 module before a separate no-Git worker exercises a two-parent merge for each
 object format. The supported finite merge profile is documented in
 [merging.md](merging.md); this does not certify native alignment heuristics,
@@ -124,4 +124,13 @@ soft/mixed/hard reset and independent/combined literal-path restore in both
 hash formats. Dirty staging/worktree, untracked collisions, stale previews and
 interrupted ref/index/worktree publication are mandatory fixtures against each
 selected installed implementation. The separate no-Git worker exercises the
-same APIs without a Git runtime. Current source selects 37 checks/18 scopes.
+same APIs without a Git runtime.
+
+## Untrusted ingestion qualification
+
+The [explicit ingestion profile](ingestion.md) adds mandatory early SHA-1
+refusal, bounded structural validation, native fsck comparisons and a separate
+empty-PATH receive check. Linux additionally selects descriptor confinement,
+path/link/permission adversarial tests, disk-full/cancellation cleanup and real
+process-exit journal recovery. macOS/Windows qualify the public profile refusal;
+macOS also exercises POSIX descriptor mechanics without enabling hosting there.

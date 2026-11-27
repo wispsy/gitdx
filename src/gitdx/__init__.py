@@ -29,8 +29,10 @@ from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, Checkout
 from .checkout_transaction import CheckoutResult
 from .quarantine import ObjectQuarantine, unpack_objects
 from .quarantine import QuarantineOwnershipError
+from .ingestion import IngestionLimits, IngestionProfile
+from .confined_fs import ConfinementError, FilesystemLimits
 from .receive import (ReceiveInterrupted, ReceiveLimits, ReceiveOutcome, ReceivePolicy, ReceiveRejected,
-                      ReceiveResult, ReceiveState, ReceiveView, receive)
+                      ReceiveResult, ReceiveState, ReceiveView, receive, recover_receive)
 from .transfers import (CloneIncomplete, FetchFailure, FetchInterrupted, FetchResult, FetchTransport, LocalTransport,
                         TransferCancelled, TransferControl, TransferError, TransferLimits, TransferTimeout, clone, fetch)
 from .http_transport import HTTPAuthorization, SmartHTTPTransport
@@ -68,8 +70,11 @@ __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPla
 __all__ += ["CheckoutResult"]
 __all__ += ["Config", "ConfigEntry", "RepositoryConfig", "parse_config", "parse_values", "read_config"]
 __all__ += ["ObjectQuarantine", "unpack_objects"]
+__all__ += ["IngestionLimits", "IngestionProfile"]
+__all__ += ["ConfinementError", "FilesystemLimits"]
 __all__ += ["QuarantineOwnershipError", "ReceiveInterrupted", "ReceiveLimits", "ReceiveOutcome", "ReceivePolicy",
             "ReceiveRejected", "ReceiveResult", "ReceiveState", "ReceiveView", "receive"]
+__all__ += ["recover_receive"]
 __all__ += ["HTTPAuthorization", "SmartHTTPTransport"]
 __all__ += ["CapabilityState", "QualificationEvidence", "capability_report", "implementation_digest", "runtime_toolchain"]
 __all__ += ["PushOutcome", "PushResult", "PushState", "PushTransport", "PushUncertain", "PushUpdate", "push"]
