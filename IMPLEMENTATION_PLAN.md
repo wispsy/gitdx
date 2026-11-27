@@ -1,5 +1,15 @@
 # Gitdx → Gittycat implementation plan
 
+## DX-28 explicit reftable writer (27 November 2026)
+
+An explicit trusted-local writer now provides expected-value batches through the
+native stack lock and one atomic stack-list replacement. Complete-stack
+compaction preserves case, symbols, ref update indexes and native reflog bytes.
+Before/after journals qualify process-interruption recovery without overwriting
+later native edits or stealing lockfiles. Default repository mutations remain
+read-only; untrusted/hosted writes and retired-table deletion remain separate.
+See [reftable storage](docs/reftable.md) for bounds and platform qualification.
+
 ## DX-29 isolated translation (27 November 2026)
 
 The explicit `GraphTranslator` API translates complete unsigned graphs between

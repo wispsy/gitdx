@@ -32,6 +32,7 @@ CHECKS=('native-objects', 'packed-read', 'delta-ofs', 'delta-ref', 'packed-refs'
  'refs-transaction-no-git', 'ingestion-policy', 'ingestion-native', 'ingestion-no-git',
  'reftable-native','reftable-corruption','reftable-no-git',
  'upload-pack-native','upload-pack-policy','upload-pack-no-git',
+ 'reftable-write-native','reftable-write-atomic','reftable-write-recovery','reftable-write-no-git',
  'translation-native','translation-policy','translation-no-git')
 if confined_storage_supported():CHECKS+=('ingestion-confinement',)
 CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'storage.delta-ofs-ref',
@@ -39,7 +40,8 @@ CAPABILITIES=('objects.native', 'storage.loose', 'storage.pack-index-v2', 'stora
  'config.local', 'diff.trees-bytes', 'history.revisions', 'history.ancestry',
  'transfer.fetch-local-http', 'protocol.push-records', 'transfer.push-local', 'transfer.push-http',
  'worktree.merge-two-parent', 'worktree.reset-restore', 'receive.quarantine-policy',
- 'refs.coordinated-multi-update', 'receive.ingestion-validation','repository.reftable','protocol.upload-pack')
+ 'refs.coordinated-multi-update', 'receive.ingestion-validation','repository.reftable','protocol.upload-pack',
+ 'refs.reftable-write')
 if confined_storage_supported():CAPABILITIES+=('receive.untrusted-sha256',)
 
 
@@ -141,6 +143,11 @@ def runtime(spec):
     try:tables.refs.update('refs/heads/main',ObjectId(spec['tip'],format),expected=None)
     except UnsupportedFormat:pass
     else:raise RuntimeError('reftable write accepted')
+    writer = tables.refs.writer()
+    expected = tables.refs.read('refs/heads/main')
+    result = writer.transaction((gitdx.ReftableChange('refs/heads/main', expected, expected),))
+    if not result.committed or not result.atomic: raise RuntimeError('explicit reftable batch did not commit atomically')
+    writer.compact()
     for hex,kind,digest in spec['objects']:
         raw=repo.objects.read(ObjectId(hex,format))
         if raw.kind.value!=kind or hashlib.sha256(raw.data).hexdigest()!=digest:raise RuntimeError('packed native object mismatch')
@@ -439,6 +446,9 @@ def qualify(args):
     import test_reftable
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_reftable))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('reftable qualification failed or skipped')
+    import test_reftable_writer
+    result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_reftable_writer))
+    if not result.wasSuccessful() or result.skipped:raise RuntimeError('reftable writer qualification failed or skipped')
     import test_translation
     result=unittest.TextTestRunner(verbosity=1).run(unittest.defaultTestLoader.loadTestsFromModule(test_translation))
     if not result.wasSuccessful() or result.skipped:raise RuntimeError('translation qualification failed or skipped')
