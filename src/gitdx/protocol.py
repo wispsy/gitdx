@@ -332,7 +332,10 @@ def parse_legacy_request(packets,advertisement,local_format,*,limits=None):
     first=_text(frames[0],limits).split(b" ")
     if len(first)<2 or first[0]!=b"want":raise ProtocolError("invalid first want")
     caps=_caps(first[2:],limits)
-    if _format(caps)!=ObjectFormat(local_format):raise ObjectFormatMismatch("request object-format does not match local storage")
+    if any(c.name==b'object-format' for c in caps) and _format(caps)!=ObjectFormat(local_format):
+        raise ObjectFormatMismatch("request object-format does not match local storage")
+    # Native legacy clients can infer the advertised format without echoing
+    # object-format. Every want/have must still use that exact digest width.
     n=negotiate(advertisement,local_format,capabilities=caps,limits=limits)
     known={r.oid for r in advertisement.refs}|{r.peeled for r in advertisement.refs if r.peeled};wants=[];haves=[];done=False
     for i,p in enumerate(frames[:split]):

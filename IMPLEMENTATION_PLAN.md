@@ -1,5 +1,17 @@
 # Gitdx → Gittycat implementation plan
 
+## Read-serving interface (26 November 2026)
+
+CAT-07A supplies the engine interface required by Gittycat CAT-07. Implement
+bounded stateless v0/v1/v2 discovery, ls-refs and upload-pack responses, common
+have acknowledgments and complete advertised-tip packs. Reuse the existing
+framing, typed object graph and pack writer; add cooperative writer checks.
+Qualify stock Git clone/fetch, both formats, tags, empty repositories and a
+separate installed empty-PATH worker. Gittycat owns catalog authorization,
+credentials, Expose API routes, concurrent preparation limits and disconnect
+cleanup. No framework dependency belongs in Gitdx. Publication and deployment
+remain separate gates.
+
 Planning baseline: 22 November 2026. Both projects use Python 3.14+ and the MIT
 license. Version labels below describe qualification milestones; they do not
 authorize releases or promise dates.

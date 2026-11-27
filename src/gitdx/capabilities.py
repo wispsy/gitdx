@@ -41,6 +41,7 @@ _PROFILES=(
     ('worktree.index-required', 'unsupported', 'Non-v2, split/sparse and unknown required index features are refused', ('refusal-index-required',)),
     ('transfer.fetch-local-http', 'supported', 'Complete same-format local and smart-HTTP fetch/clone', ('fetch-interop',)),
     ('protocol.push-records', 'supported', 'Bounded receive-pack commands and report-status v1/v2 records', ('push-codec',)),
+    ('protocol.upload-pack', 'supported', 'Bounded read-only stateless v0/v1/v2 discovery/fetch with complete advertised-tip packs', ('upload-pack-native','upload-pack-policy','upload-pack-no-git')),
     ('receive.quarantine-policy', 'supported', 'Bounded complete object graphs, explicit policy and single-ref receive outcomes', ('receive-native','receive-policy','receive-fault','receive-no-git')),
     ('config.local', 'supported', 'Local ordered configuration and conservative worktree policy', ('native-status','refusal-profiles')),
     ('config.includes-inspection', 'experimental', 'Explicit confined read-only includes; repository mutations refuse includes', ()),

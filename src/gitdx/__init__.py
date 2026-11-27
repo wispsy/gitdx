@@ -25,6 +25,7 @@ from .merge import MergeConflict, MergeLimits, MergePlan, MergeResult
 from .worktree_transaction import MutationPlan, MutationResult
 from .reset_restore import ResetPlan, RestorePlan
 from .pack_writer import PackBundle, PackWriteLimits, reachable_objects, write_pack
+from .upload_pack import UploadPack, UploadPackLimits
 from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, CheckoutPlan, CheckoutRecoveryRequired
 from .checkout_transaction import CheckoutResult
 from .quarantine import ObjectQuarantine, unpack_objects
@@ -51,6 +52,7 @@ __all__ = ["Blob", "Commit", "GitdxError", "Header", "InvalidObject", "ObjectFor
            "ObjectLimitExceeded", "ObjectStore", "StoreLimits", "Repository", "RepositoryNotFound", "InvalidRef",
            "DirectRef", "FilesRefStore", "RefConflict", "RefLocked", "RefStore", "ResolvedRef", "SymbolicRef"]
 __all__ += ["Index", "IndexEntry", "IndexExtension", "IndexFile", "IndexLimits", "IndexLocked", "IndexStat", "InvalidIndex"]
+__all__ += ['UploadPack','UploadPackLimits']
 __all__ += ["PackedRef", "PackedRefs", "ReflogReceipt", "ReflogUpdate", "RefUpdateResult"]
 __all__ += ["RefChange", "RefRecoveryRequired", "RefTransactionInterrupted", "RefTransactionResult", "RefTransactionState"]
 __all__ += ["InvalidPack", "PackFile", "PackIndex", "PackIndexEntry", "PackLimits", "RepositoryObjectStore"]
