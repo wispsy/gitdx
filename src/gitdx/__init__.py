@@ -26,6 +26,7 @@ from .merge import MergeConflict, MergeLimits, MergePlan, MergeResult
 from .worktree_transaction import MutationPlan, MutationResult
 from .reset_restore import ResetPlan, RestorePlan
 from .pack_writer import PackBundle, PackWriteLimits, reachable_objects, write_pack
+from .translation import GraphTranslator, TranslationResult
 from .upload_pack import UploadPack, UploadPackLimits
 from .checkout import CheckoutChange, CheckoutConflict, CheckoutLimits, CheckoutPlan, CheckoutRecoveryRequired
 from .checkout_transaction import CheckoutResult
@@ -70,6 +71,7 @@ __all__ += ["MergeConflict", "MergeLimits", "MergePlan", "MergeResult"]
 __all__ += ["MutationPlan", "MutationResult"]
 __all__ += ["ResetPlan", "RestorePlan"]
 __all__ += ["PackBundle", "PackWriteLimits", "reachable_objects", "write_pack"]
+__all__ += ["GraphTranslator", "TranslationResult"]
 __all__ += ["CheckoutChange", "CheckoutConflict", "CheckoutLimits", "CheckoutPlan", "CheckoutRecoveryRequired"]
 __all__ += ["CheckoutResult"]
 __all__ += ["Config", "ConfigEntry", "RepositoryConfig", "parse_config", "parse_values", "read_config"]
