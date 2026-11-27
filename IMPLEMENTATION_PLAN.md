@@ -10,6 +10,14 @@ later native edits or stealing lockfiles. Default repository mutations remain
 read-only; untrusted/hosted writes and retired-table deletion remain separate.
 See [reftable storage](docs/reftable.md) for bounds and platform qualification.
 
+## DX-29 isolated translation (27 November 2026)
+
+The explicit `GraphTranslator` API translates complete unsigned graphs between
+separate SHA-1/SHA-256 stores without publishing refs. Versioned SQLite mappings
+are verified against object bytes on every run. Signatures, mergetags and
+gitlinks refuse before writes; migration and cross-format transfer remain gated.
+See [translation](docs/translation.md) for bounds, restart and cache semantics.
+
 ## Read-serving interface (26 November 2026)
 
 CAT-07A supplies the engine interface required by Gittycat CAT-07. Implement

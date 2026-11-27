@@ -62,6 +62,7 @@ _PROFILES=(
     ('transfer.push-http', 'supported', 'Same-format smart-HTTP push with explicit auth and per-ref reports', ('push-http',)),
     ('server.git-routes', 'unsupported', 'Production upload/receive handlers are separately scoped', ()),
     ('objects.cross-format', 'unsupported', 'Object-format advertisement never negotiates conversion', ()),
+    ('objects.graph-translation', 'experimental', 'Explicit isolated unsigned graph translation with verified SQLite mappings; no migration or cross-format transport', ('translation-native','translation-policy','translation-no-git')),
 )
 
 

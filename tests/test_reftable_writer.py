@@ -96,9 +96,11 @@ class ReftableWriterNativeTests(unittest.TestCase):
                     while not done.is_set():
                         values = dict(repo.refs.snapshot());a = values['refs/heads/a'];b = values['refs/heads/b']
                         if a != b: raise AssertionError('partially published reftable batch')
-                        native = oracle.git(repo.git_dir, 'for-each-ref', '--format=%(objectname)',
-                            'refs/heads/a', 'refs/heads/b').splitlines()
-                        if len(native) != 2 or native[0] != native[1]: raise AssertionError('partial native reader snapshot')
+                        # Several native prefix arguments can create separate
+                        # iterators/snapshots. One prefix selects one iterator.
+                        native = dict(line.split(b' ', 1) for line in oracle.git(repo.git_dir, 'for-each-ref',
+                            '--format=%(refname) %(objectname)', 'refs/heads/').splitlines())
+                        if native[b'refs/heads/a'] != native[b'refs/heads/b']: raise AssertionError('partial native reader snapshot')
                         observations.append(a)
                         ready.set()
                 except BaseException as error: failures.append(error)
