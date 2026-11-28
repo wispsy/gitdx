@@ -39,6 +39,6 @@ repository does not permit untrusted SHA-1 ingestion.
 
 Source/wheel/sdist qualification compares stock Git clone/fetch, branches/tags,
 empty repositories and all three protocols in both hashes. A separate empty-PATH
-worker generates and verifies the same complete pack responses. Gittycat CAT-07
+worker generates and verifies the same complete pack responses. Gitcx CAT-07
 owns the Expose API adapter and private-resource concealment. Deployment remains
 separate.

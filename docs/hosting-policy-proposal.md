@@ -47,7 +47,7 @@ binding, selected build or this engine's ingestion paths are qualified.
 1. Add an explicit ingestion profile selected by the trusted application, separate
    from branch/authorization policy and immutable native object-format selection.
    Remote commands, object contents and request headers cannot choose its trust
-   level. The future Gittycat receive service must select the untrusted profile.
+   level. The future Gitcx receive service must select the untrusted profile.
 2. In that profile, reject SHA-1 storage before staging, inflation or policy hooks.
    Trusted local APIs keep their existing two-format behavior. Advertisements
    and receive services must agree on allowed formats; no hidden conversion.

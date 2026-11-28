@@ -1,4 +1,4 @@
-# Gitdx → Gittycat implementation plan
+# Gitdx → Gitcx implementation plan
 
 ## DX-33 hosting API qualification (27 November 2026)
 
@@ -40,12 +40,12 @@ See [translation](docs/translation.md) for bounds, restart and cache semantics.
 
 ## Read-serving interface (26 November 2026)
 
-CAT-07A supplies the engine interface required by Gittycat CAT-07. Implement
+CAT-07A supplies the engine interface required by Gitcx CAT-07. Implement
 bounded stateless v0/v1/v2 discovery, ls-refs and upload-pack responses, common
 have acknowledgments and complete advertised-tip packs. Reuse the existing
 framing, typed object graph and pack writer; add cooperative writer checks.
 Qualify stock Git clone/fetch, both formats, tags, empty repositories and a
-separate installed empty-PATH worker. Gittycat owns catalog authorization,
+separate installed empty-PATH worker. Gitcx owns catalog authorization,
 credentials, Expose API routes, concurrent preparation limits and disconnect
 cleanup. No framework dependency belongs in Gitdx. Publication and deployment
 remain separate gates.
@@ -61,16 +61,16 @@ storage, local operations and transport. Its runtime uses only the standard
 library and never invokes the Git executable. Its Python API works without a
 terminal interface, hosting application or optional integration.
 
-Gittycat is a single-node Git hosting and collaboration application powered by
+Gitcx is a single-node Git hosting and collaboration application powered by
 Gitdx. It owns identities, permissions, repository metadata, branch policy,
 collaboration and interfaces. It delegates Git objects, refs, history, packs and
-protocol algorithms to Gitdx. Gittycat does not maintain a second branch-tip
+protocol algorithms to Gitdx. Gitcx does not maintain a second branch-tip
 authority in its database.
 
 The [shared Project](https://github.com/orgs/wispsy/projects/30) and owning issues
 are the execution queue. This document owns architecture, sequencing and
 qualification contracts. PRs record implementation decisions and evidence.
-The [Gittycat plan](https://github.com/wispsy/gittycat/blob/main/IMPLEMENTATION_PLAN.md)
+The [Gitcx plan](https://github.com/wispsy/gitcx/blob/main/IMPLEMENTATION_PLAN.md)
 details the hosting boundary.
 
 ## Inputs and decisions
@@ -84,7 +84,7 @@ used as release requirements.
 Selected foundations:
 
 - Retain the fresh packages' Python 3.14 minimum and uv build backend.
-- Public `wispsy/gitdx` and `wispsy/gittycat` repositories; MIT for each.
+- Public `wispsy/gitdx` and `wispsy/gitcx` repositories; MIT for each.
 - Standard-library-only Gitdx, including its default transports. Third-party
   transports and user interfaces are optional adapters.
 - Immutable bytes are authoritative for objects. SHA-1 is the default repository
@@ -92,7 +92,7 @@ Selected foundations:
   Native SHA-256 object/storage fixtures start immediately.
 - Files refs first; unsupported extensions and formats are refused before
   mutation. Reftable reading and writing are separate milestones.
-- Gittycat begins as a modular monolith with SQLite platform metadata, bare
+- Gitcx begins as a modular monolith with SQLite platform metadata, bare
   repositories under opaque storage IDs, and smart HTTP before SSH.
 - unittest is the test framework. Installed Git is a development-only oracle.
   No runtime dependency is added to the Gitdx package.
@@ -104,7 +104,7 @@ flowchart TB
     Python[Python applications and CLI] --> DX[Gitdx public API]
     Clients[Stock Git clients] --> Protocol[Git protocol framing]
     Protocol --> DX
-    Forge[Gittycat application services] --> DX
+    Forge[Gitcx application services] --> DX
     Forge --> Catalog[SQLite identities, policy and collaboration]
     DX --> Objects[Git objects and packs]
     DX --> Refs[Git reference backend]
@@ -199,8 +199,8 @@ stock Git cross-format transport interoperability.
 | Gitdx 0.6 | Interoperability and reftable reading | Installed compatibility matrix, truthful capability report, format negotiation and read-only reftable evidence |
 | Gitdx 0.7 | Quarantine, policy seams and ref transactions | Malformed graphs, stale writers and interrupted receives never publish invalid refs |
 | Gitdx 0.8 | Hardened storage, reftable writes, maintenance, stable backend | Concurrent mutation, crash recovery, backup/restore and installed source/wheel/sdist qualification |
-| Gittycat prototype | Local stock-Git hosting | Two authorized clients clone/push/fetch; outsiders cannot discover or retrieve private repository data |
-| Gittycat 0.8 alpha | Single-node forge with collaboration | Users/orgs/tokens, shared policy, smart HTTP, browser views, reviewed PR merge, audit/jobs and restore pass installed acceptance |
+| Gitcx prototype | Local stock-Git hosting | Two authorized clients clone/push/fetch; outsiders cannot discover or retrieve private repository data |
+| Gitcx 0.8 alpha | Single-node forge with collaboration | Users/orgs/tokens, shared policy, smart HTTP, browser views, reviewed PR merge, audit/jobs and restore pass installed acceptance |
 | Experimental conversion | Isolated translation, then migration, then selected-peer transfer | Bidirectional graph equivalence and source preservation; explicit signature/gitlink rules; stock-Git claims require real exchange evidence |
 | 0.9+ | Advanced porcelain, SSH/LFS/CI and scaling | Independently scoped contracts and owning issues before implementation |
 
@@ -214,7 +214,7 @@ patch version assignment waits for actual API/release decisions.
 | Component | Role | Dependency rule |
 | --- | --- | --- |
 | Gitdx | Git objects, refs, index, history, packs, protocols | No third-party runtime packages or Git executable |
-| Gittycat | Identity, authorization, catalog, collaboration and hosting services | Mandatory qualified Gitdx backend; other integrations selected explicitly |
+| Gitcx | Identity, authorization, catalog, collaboration and hosting services | Mandatory qualified Gitdx backend; other integrations selected explicitly |
 | Expose API | Management API and application HTTP adapter | Inspect current API before use; keep binary Git routes distinct |
 | Requ / Apiconn | Optional outgoing HTTP/API clients | No mandatory external service; explicit credentials and destinations |
 | Carets | Optional terminal application | Presentation and selection, outside storage/authorization |
@@ -261,7 +261,7 @@ The fixture matrix grows with the implementation:
 
 A machine-readable capability registry will be backed by passing tests and
 identify exact supported operations/formats/backends. Unimplemented features
-stay false or explicitly experimental. Gittycat checks this profile before
+stay false or explicitly experimental. Gitcx checks this profile before
 opening a backend or advertising a protocol capability.
 
 ## Storage and trust limits
@@ -287,7 +287,7 @@ external services.
 
 The first batch has five focused implementation PRs: DX-01, DX-02, DX-03,
 DX-04 and CAT-01. Same-repository dependencies stack on the preceding local
-branch; independent Gittycat work proceeds while engine CI runs. Collect all
+branch; independent Gitcx work proceeds while engine CI runs. Collect all
 results, correct failures and integrate passing work. For this batch, squash
 children into their parent from the deepest child upward, then squash the root
 into main. Reconcile dependent bases and record each task's final-main inclusion
@@ -332,7 +332,7 @@ Later broad workstream/decision items must be split before implementation.
 | [DX-02](https://github.com/wispsy/gitdx/issues/2) | gitdx: Bounded atomic loose-object storage | 0.1 Objects | DX-01 |
 | [DX-03](https://github.com/wispsy/gitdx/issues/3) | gitdx: Repository lifecycle, format detection and plumbing CLI | 0.1 Objects | DX-02 |
 | [DX-04](https://github.com/wispsy/gitdx/issues/4) | gitdx: Loose refs, HEAD and compare-and-swap updates | 0.1 Objects | DX-03 |
-| [CAT-01](https://github.com/wispsy/gittycat/issues/1) | gittycat: Hosting domain and explicit repository permissions | Foundation | None |
+| [CAT-01](https://github.com/wispsy/gitcx/issues/1) | gitcx: Hosting domain and explicit repository permissions | Foundation | None |
 | [DX-05](https://github.com/wispsy/gitdx/issues/5) | gitdx: Git index v2 codec and locked staging transactions | 0.2 Local | DX-04 |
 | [DX-06](https://github.com/wispsy/gitdx/issues/6) | gitdx: Add, status and baseline exclusion rules | 0.2 Local | DX-05 |
 | [DX-07](https://github.com/wispsy/gitdx/issues/7) | gitdx: Commit creation and bounded history | 0.2 Local | DX-06 |
@@ -362,22 +362,22 @@ Later broad workstream/decision items must be split before implementation.
 | [DX-31](https://github.com/wispsy/gitdx/issues/31) | gitdx: Experimental cross-format transfer | Experimental conversion | DX-30, DX-21 / policy gate |
 | [DX-32](https://github.com/wispsy/gitdx/issues/32) | gitdx: Advanced porcelain and repository-format workstreams | 0.9+ Advanced | DX-17, DX-27 / policy gate |
 | [DX-33](https://github.com/wispsy/gitdx/issues/33) | gitdx: Hosting-ready API and installed engine qualification | 0.8 Storage | DX-27, DX-28, DX-22 |
-| [CAT-02](https://github.com/wispsy/gittycat/issues/2) | gittycat: SQLite catalog, migrations and audit outbox | Foundation | CAT-01 |
-| [CAT-03](https://github.com/wispsy/gittycat/issues/3) | gittycat: Bare repository provisioning through gitdx | Foundation | CAT-02, DX-04 |
-| [CAT-04](https://github.com/wispsy/gittycat/issues/4) | gittycat: Accounts, organizations and token authentication | Identity | CAT-02 |
-| [CAT-05](https://github.com/wispsy/gittycat/issues/5) | gittycat: Branch protection and ref-change policy | Policy | CAT-04, DX-15 |
-| [CAT-06](https://github.com/wispsy/gittycat/issues/6) | gittycat: Management API with Expose API integration | Management API | CAT-03, CAT-04 |
-| [CAT-07](https://github.com/wispsy/gittycat/issues/7) | gittycat: Smart-HTTP advertisement and upload-pack | Smart HTTP | CAT-06, DX-22 |
-| [CAT-08](https://github.com/wispsy/gittycat/issues/8) | gittycat: Receive-pack with quarantine and policy enforcement | Smart HTTP | CAT-07, CAT-05, DX-26, DX-24 |
-| [CAT-09](https://github.com/wispsy/gittycat/issues/9) | gittycat: Local two-user stock-Git hosting acceptance | Prototype acceptance | CAT-08 |
-| [CAT-10](https://github.com/wispsy/gittycat/issues/10) | gittycat: Repository browser and safe commit/diff views | Browser | CAT-09, DX-14 |
-| [CAT-11](https://github.com/wispsy/gittycat/issues/11) | gittycat: Pull requests, comments, reviews and checked merge | Collaboration | CAT-10, CAT-05, DX-16 |
-| [CAT-12](https://github.com/wispsy/gittycat/issues/12) | gittycat: Durable jobs, audit queries and optional webhooks | Operations | CAT-08, CAT-02 |
-| [CAT-13](https://github.com/wispsy/gittycat/issues/13) | gittycat: Backup, restore, quotas and single-node operations | Operations | CAT-11, CAT-12, DX-27 / policy gate |
-| [CAT-14](https://github.com/wispsy/gittycat/issues/14) | gittycat: Selected typed operations and terminal/workflow adapters | Optional integrations | CAT-11, DX-33 / policy gate |
-| [CAT-15](https://github.com/wispsy/gittycat/issues/15) | gittycat: Installed forge alpha and security qualification | 0.8 Alpha | CAT-13, DX-33 |
-| [CAT-16](https://github.com/wispsy/gittycat/issues/16) | gittycat: Owner-selected publication and deployment | Release and deployment | CAT-15 / policy gate |
-| [CAT-17](https://github.com/wispsy/gittycat/issues/17) | gittycat: Immutable cross-repository installation profile | Composition | CAT-03, DX-04 |
+| [CAT-02](https://github.com/wispsy/gitcx/issues/2) | gitcx: SQLite catalog, migrations and audit outbox | Foundation | CAT-01 |
+| [CAT-03](https://github.com/wispsy/gitcx/issues/3) | gitcx: Bare repository provisioning through gitdx | Foundation | CAT-02, DX-04 |
+| [CAT-04](https://github.com/wispsy/gitcx/issues/4) | gitcx: Accounts, organizations and token authentication | Identity | CAT-02 |
+| [CAT-05](https://github.com/wispsy/gitcx/issues/5) | gitcx: Branch protection and ref-change policy | Policy | CAT-04, DX-15 |
+| [CAT-06](https://github.com/wispsy/gitcx/issues/6) | gitcx: Management API with Expose API integration | Management API | CAT-03, CAT-04 |
+| [CAT-07](https://github.com/wispsy/gitcx/issues/7) | gitcx: Smart-HTTP advertisement and upload-pack | Smart HTTP | CAT-06, DX-22 |
+| [CAT-08](https://github.com/wispsy/gitcx/issues/8) | gitcx: Receive-pack with quarantine and policy enforcement | Smart HTTP | CAT-07, CAT-05, DX-26, DX-24 |
+| [CAT-09](https://github.com/wispsy/gitcx/issues/9) | gitcx: Local two-user stock-Git hosting acceptance | Prototype acceptance | CAT-08 |
+| [CAT-10](https://github.com/wispsy/gitcx/issues/10) | gitcx: Repository browser and safe commit/diff views | Browser | CAT-09, DX-14 |
+| [CAT-11](https://github.com/wispsy/gitcx/issues/11) | gitcx: Pull requests, comments, reviews and checked merge | Collaboration | CAT-10, CAT-05, DX-16 |
+| [CAT-12](https://github.com/wispsy/gitcx/issues/12) | gitcx: Durable jobs, audit queries and optional webhooks | Operations | CAT-08, CAT-02 |
+| [CAT-13](https://github.com/wispsy/gitcx/issues/13) | gitcx: Backup, restore, quotas and single-node operations | Operations | CAT-11, CAT-12, DX-27 / policy gate |
+| [CAT-14](https://github.com/wispsy/gitcx/issues/14) | gitcx: Selected typed operations and terminal/workflow adapters | Optional integrations | CAT-11, DX-33 / policy gate |
+| [CAT-15](https://github.com/wispsy/gitcx/issues/15) | gitcx: Installed forge alpha and security qualification | 0.8 Alpha | CAT-13, DX-33 |
+| [CAT-16](https://github.com/wispsy/gitcx/issues/16) | gitcx: Owner-selected publication and deployment | Release and deployment | CAT-15 / policy gate |
+| [CAT-17](https://github.com/wispsy/gitcx/issues/17) | gitcx: Immutable cross-repository installation profile | Composition | CAT-03, DX-04 |
 | [DX-FIX-01](https://github.com/wispsy/gitdx/issues/38) | gitdx: Stop discovery at incomplete repository metadata | 0.1 Objects | DX-03 |
 | [DX-FIX-02](https://github.com/wispsy/gitdx/issues/43) | gitdx: Abort an index transaction after failed publication | 0.2 Local | DX-05 |
 | [DX-FIX-03](https://github.com/wispsy/gitdx/issues/47) | gitdx: Bound directory enumeration before sorting | 0.2 Local | DX-06 |
@@ -469,7 +469,7 @@ reftable operations. Use native Git fixtures and malformed/bounded cases.
 
 CAT-07 supplies authorized smart-HTTP discovery and upload-pack for protocol v2
 and the legacy variants used by ordinary Git clients. Git protocol parsing,
-negotiation, graph selection and pack generation remain owned by Gitdx; Gittycat
+negotiation, graph selection and pack generation remain owned by Gitdx; Gitcx
 owns HTTP/authentication/catalog/storage selection. Check current credentials
 and read permission before exposing refs/objects, bound requests/work/results,
 and qualify real stock-Git clone/fetch for both formats, empty repositories and
