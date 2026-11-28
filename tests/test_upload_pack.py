@@ -22,7 +22,7 @@ def frames(data):
 
 @contextmanager
 def upload_fixture(repo):
-    """Development HTTP adapter; runtime serving belongs to Gittycat."""
+    """Development HTTP adapter; runtime serving belongs to Gitcx."""
     requests=[];errors=[]
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args):pass

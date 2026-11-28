@@ -28,7 +28,8 @@ public deployment remain outside this preview. Repository migration and
 cross-format transport retain separate policy gates. Existing capability/API
 limits are described in [hosting-api.md](hosting-api.md).
 
-Gittycat 0.1.0a2 selects the published `gitdx==0.1.0a2` package. Repository
+The hosting preview, published as `gittycat` 0.1.0a2 and renamed Gitcx in
+0.1.0a3, selects the published `gitdx==0.1.0a2` package. Repository
 browsing, collaboration/reviews and durable jobs can follow the paired preview.
 
 ## 0.1.0a1
